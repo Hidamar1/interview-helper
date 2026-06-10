@@ -1,0 +1,23 @@
+# 依赖
+node_modules/
+
+# 环境变量（密钥不入库）
+.env
+.env.local
+.env*.local
+
+# 构建产物
+.next/
+out/
+dist/
+
+# 测试产物
+coverage/
+playwright-report/
+test-results/
+
+# 头脑风暴临时文件
+.superpowers/
+
+# 系统文件
+.DS_Store

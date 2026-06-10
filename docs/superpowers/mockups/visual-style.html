@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UI 风格方向对比 — 面试刷题平台</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif; background: #f0f2f5; padding: 40px 24px; color: #222; }
+  .page-title { text-align: center; font-size: 28px; margin-bottom: 8px; }
+  .page-subtitle { text-align: center; color: #888; margin-bottom: 40px; font-size: 14px; }
+  .option-block { max-width: 1080px; margin: 0 auto 56px; }
+  .option-label { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .option-label .badge { background: #222; color: #fff; width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; flex: none; }
+  .option-label h2 { font-size: 20px; }
+  .option-desc { color: #777; font-size: 13px; margin: 6px 0 16px 44px; line-height: 1.7; }
+  .mockup { border: 1px solid #ddd; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,.07); background: #fff; }
+
+  /* ============ 方案 A：暖橙活力风 ============ */
+  .ma { font-size: 12px; }
+  .ma .nav { display: flex; align-items: center; gap: 24px; padding: 14px 28px; background: #fff; border-bottom: 1px solid #f0e8df; }
+  .ma .logo { font-size: 16px; font-weight: 800; color: #1a1a1a; }
+  .ma .logo em { font-style: normal; color: #ff7d00; }
+  .ma .nav a { color: #555; text-decoration: none; }
+  .ma .nav a.act { color: #ff7d00; font-weight: 600; }
+  .ma .nav .btn { margin-left: auto; background: #ff7d00; color: #fff; padding: 6px 16px; border-radius: 20px; font-weight: 600; }
+  .ma .hero { background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 60%, #fed7aa 100%); padding: 36px 28px; display: flex; justify-content: space-between; align-items: center; }
+  .ma .hero h1 { font-size: 24px; color: #1a1a1a; margin-bottom: 8px; }
+  .ma .hero h1 em { font-style: normal; color: #ff7d00; }
+  .ma .hero p { color: #92765a; font-size: 12px; }
+  .ma .hero .search { margin-top: 14px; background: #fff; border: 2px solid #ff7d00; border-radius: 24px; padding: 8px 16px; width: 320px; color: #bbb; display: flex; justify-content: space-between; }
+  .ma .hero .search b { color: #ff7d00; }
+  .ma .duck { width: 110px; height: 110px; background: radial-gradient(circle at 35% 30%, #ffd166, #ffb01f); border-radius: 50% 50% 46% 54%; position: relative; flex: none; }
+  .ma .duck::before { content: ""; position: absolute; left: 26px; top: 34px; width: 12px; height: 12px; background: #333; border-radius: 50%; }
+  .ma .duck::after { content: ""; position: absolute; left: 14px; top: 52px; width: 30px; height: 16px; background: #ff7d00; border-radius: 8px; }
+  .ma .cats { display: flex; gap: 8px; padding: 16px 28px 0; flex-wrap: wrap; }
+  .ma .cat { padding: 5px 14px; border-radius: 16px; background: #fff4e8; color: #b4690e; }
+  .ma .cat.act { background: #ff7d00; color: #fff; }
+  .ma .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; padding: 18px 28px 28px; }
+  .ma .card { border: 1px solid #f3e7d8; border-radius: 14px; padding: 14px; background: #fff; transition: .2s; }
+  .ma .card .ic { width: 36px; height: 36px; border-radius: 10px; margin-bottom: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+  .ma .card h3 { font-size: 13px; margin-bottom: 5px; }
+  .ma .card p { color: #999; font-size: 11px; }
+  .ma .card .meta { margin-top: 10px; color: #c9a; font-size: 11px; display: flex; justify-content: space-between; }
+  .ma .card .meta b { color: #ff7d00; font-weight: 600; }
+
+  /* ============ 方案 B：极客深绿终端风 ============ */
+  .mb { font-size: 12px; background: #fafdf9; }
+  .mb .nav { display: flex; align-items: center; gap: 24px; padding: 14px 28px; background: #0e2a1d; }
+  .mb .logo { font-size: 15px; font-weight: 800; color: #fff; font-family: "JetBrains Mono", Consolas, monospace; }
+  .mb .logo em { font-style: normal; color: #34d399; }
+  .mb .nav a { color: #9fc4b2; text-decoration: none; }
+  .mb .nav a.act { color: #34d399; font-weight: 600; }
+  .mb .nav .btn { margin-left: auto; background: #34d399; color: #06281a; padding: 6px 16px; border-radius: 6px; font-weight: 700; }
+  .mb .hero { background: #0e2a1d; padding: 0 28px 32px; }
+  .mb .term { background: #07150e; border: 1px solid #1d4733; border-radius: 10px; padding: 18px 20px; font-family: "JetBrains Mono", Consolas, monospace; color: #c2ecd6; max-width: 560px; }
+  .mb .term .bar { display: flex; gap: 6px; margin-bottom: 12px; }
+  .mb .term .dot { width: 10px; height: 10px; border-radius: 50%; background: #245c40; }
+  .mb .term .ln { line-height: 2; }
+  .mb .term .p { color: #34d399; }
+  .mb .term .cur { display: inline-block; width: 8px; height: 14px; background: #34d399; vertical-align: middle; }
+  .mb .stats { display: flex; gap: 32px; padding: 14px 28px; border-bottom: 1px solid #e3efe7; color: #5a7466; }
+  .mb .stats b { color: #0e2a1d; font-size: 16px; font-family: Consolas, monospace; }
+  .mb .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; padding: 18px 28px 28px; }
+  .mb .card { border: 1px solid #dcebe1; border-left: 3px solid #34d399; border-radius: 8px; padding: 14px; background: #fff; }
+  .mb .card h3 { font-size: 13px; margin-bottom: 5px; font-family: Consolas, monospace; }
+  .mb .card p { color: #8aa295; font-size: 11px; }
+  .mb .card .meta { margin-top: 10px; font-size: 11px; color: #34d399; font-family: Consolas, monospace; }
+
+  /* ============ 方案 C：纸感杂志编辑风 ============ */
+  .mc { font-size: 12px; background: #faf7f2; }
+  .mc .nav { display: flex; align-items: baseline; gap: 24px; padding: 18px 32px; border-bottom: 2px solid #1a1a1a; background: #faf7f2; }
+  .mc .logo { font-size: 18px; font-weight: 900; letter-spacing: 1px; color: #1a1a1a; font-family: "Noto Serif SC", serif; }
+  .mc .nav a { color: #666; text-decoration: none; }
+  .mc .nav a.act { color: #1a1a1a; font-weight: 700; border-bottom: 2px solid #d4380d; padding-bottom: 2px; }
+  .mc .nav .btn { margin-left: auto; border: 1.5px solid #1a1a1a; color: #1a1a1a; padding: 5px 18px; border-radius: 0; font-weight: 700; }
+  .mc .hero { padding: 40px 32px 28px; border-bottom: 1px solid #e5ddd0; display: flex; justify-content: space-between; align-items: flex-end; }
+  .mc .hero h1 { font-size: 30px; font-family: "Noto Serif SC", serif; font-weight: 900; line-height: 1.35; }
+  .mc .hero h1 em { font-style: normal; color: #d4380d; }
+  .mc .hero .no { font-family: Georgia, serif; color: #b5a890; font-size: 44px; font-weight: 700; }
+  .mc .hero p { margin-top: 10px; color: #8c8273; }
+  .mc .grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 0; padding: 0 32px 32px; }
+  .mc .card { padding: 20px 18px; border-right: 1px solid #e5ddd0; border-bottom: 1px solid #e5ddd0; background: transparent; }
+  .mc .card:first-child { grid-row: span 2; background: #1a1a1a; color: #faf7f2; }
+  .mc .card:first-child p { color: #b5ab9b; }
+  .mc .card .tag { font-size: 10px; letter-spacing: 2px; color: #d4380d; font-weight: 700; }
+  .mc .card h3 { font-size: 15px; margin: 8px 0 6px; font-family: "Noto Serif SC", serif; }
+  .mc .card:first-child h3 { font-size: 20px; }
+  .mc .card p { color: #8c8273; font-size: 11px; line-height: 1.7; }
+  .mc .card .meta { margin-top: 12px; font-size: 11px; color: #b5a890; }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">三套 UI 风格方向 · 首页原型对比</h1>
+<p class="page-subtitle">都遵循「干净、内容为先」的面试鸭式布局骨架（顶部导航 + 分类 + 题库卡片网格），但视觉语言完全不同</p>
+
+<!-- ================= 方案 A ================= -->
+<div class="option-block">
+  <div class="option-label"><span class="badge">A</span><h2>暖橙活力风 —— 鸭黄主题的亲切感</h2></div>
+  <p class="option-desc">最接近面试鸭气质但更鲜明：暖橙主色 #FF7D00 + 奶油渐变 Hero + 圆角卡片 + 吉祥物 IP。亲切、有记忆点、适合「陪伴式刷题」的产品人格。规避 AI 味的手段是大胆的暖色域和 IP 插画。</p>
+  <div class="mockup ma">
+    <div class="nav">
+      <span class="logo">面试<em>突击鸭</em></span>
+      <a class="act">题库</a><a>开始面试</a><a>刷题记录</a>
+      <span class="btn">登录</span>
+    </div>
+    <div class="hero">
+      <div>
+        <h1>把八股文，刷成<em>肌肉记忆</em></h1>
+        <p>500+ 高频面试题 · AI 面试官追问 · 程序员求职刷题神器</p>
+        <div class="search"><span>搜索题目，如：HashMap 扩容机制…</span><b>搜索</b></div>
+      </div>
+      <div class="duck"></div>
+    </div>
+    <div class="cats">
+      <span class="cat act">🔥 热门</span><span class="cat">Java</span><span class="cat">前端</span><span class="cat">Python</span><span class="cat">数据库</span><span class="cat">网络</span><span class="cat">操作系统</span><span class="cat">AI 大模型</span>
+    </div>
+    <div class="grid">
+      <div class="card"><div class="ic" style="background:#ffede0">☕</div><h3>Java 基础</h3><p>面向对象 · 集合 · 并发</p><div class="meta"><span>86 题</span><b>1.2k 人在刷</b></div></div>
+      <div class="card"><div class="ic" style="background:#e8f4ff">🌐</div><h3>计算机网络</h3><p>TCP/IP · HTTP · HTTPS</p><div class="meta"><span>64 题</span><b>980 人在刷</b></div></div>
+      <div class="card"><div class="ic" style="background:#eefbe9">🗄️</div><h3>MySQL</h3><p>索引 · 事务 · 优化</p><div class="meta"><span>72 题</span><b>1.5k 人在刷</b></div></div>
+      <div class="card"><div class="ic" style="background:#fff0f6">🤖</div><h3>AI 大模型</h3><p>RAG · Agent · 微调</p><div class="meta"><span>58 题</span><b>2.1k 人在刷</b></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 方案 B ================= -->
+<div class="option-block">
+  <div class="option-label"><span class="badge">B</span><h2>极客深绿终端风 —— 给程序员的专属仪式感</h2></div>
+  <p class="option-desc">深墨绿 #0E2A1D + 终端绿 #34D399 + 等宽字体点缀。Hero 区是一个模拟终端窗口，题库卡片带代码注释风格。辨识度最高、最「不像通用网站」，气质冷峻硬核，契合目标用户审美。</p>
+  <div class="mockup mb">
+    <div class="nav">
+      <span class="logo">$ offer<em>_grind</em></span>
+      <a class="act">题库</a><a>AI 面试</a><a>刷题日历</a>
+      <span class="btn">登录</span>
+    </div>
+    <div class="hero">
+      <div class="term">
+        <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+        <div class="ln"><span class="p">user@job-hunting</span>:~$ 准备好拿 offer 了吗？</div>
+        <div class="ln">→ 已加载 <b style="color:#34d399">512</b> 道高频面试题</div>
+        <div class="ln">→ AI 面试官待命中…</div>
+        <div class="ln"><span class="p">user@job-hunting</span>:~$ <span class="cur"></span></div>
+      </div>
+    </div>
+    <div class="stats">
+      <span><b>512</b> 道题目</span><span><b>24</b> 个题库</span><span><b>3,847</b> 次模拟面试</span>
+    </div>
+    <div class="grid">
+      <div class="card"><h3>// Java 基础</h3><p>面向对象、集合框架、并发编程</p><div class="meta">86 questions →</div></div>
+      <div class="card"><h3>// 计算机网络</h3><p>TCP/IP、HTTP、HTTPS 握手</p><div class="meta">64 questions →</div></div>
+      <div class="card"><h3>// MySQL</h3><p>索引原理、事务隔离、SQL 优化</p><div class="meta">72 questions →</div></div>
+      <div class="card"><h3>// AI 大模型</h3><p>RAG、Agent、Prompt 工程</p><div class="meta">58 questions →</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 方案 C ================= -->
+<div class="option-block">
+  <div class="option-label"><span class="badge">C</span><h2>纸感杂志编辑风 —— 像读一本求职周刊</h2></div>
+  <p class="option-desc">米白纸感底色 + 衬线大标题 + 朱砂红点缀 + 报纸式分栏与细分割线。把「刷题」包装成「阅读」，知识感、人文感强，在技术产品里极少见，撞款概率几乎为零。</p>
+  <div class="mockup mc">
+    <div class="nav">
+      <span class="logo">求职面试志</span>
+      <a class="act">题库</a><a>模拟面试</a><a>我的书签</a>
+      <span class="btn">登录</span>
+    </div>
+    <div class="hero">
+      <div>
+        <h1>八股文不必死背，<br>要<em>讲得出</em>、答得上。</h1>
+        <p>每一道题，都按「速记 → 详解 → 追问」编排成章</p>
+      </div>
+      <div class="no">Vol.01</div>
+    </div>
+    <div class="grid">
+      <div class="card"><span class="tag">FEATURED</span><h3>Java 基础特辑</h3><p>从面向对象三大特性到 JUC 并发包，86 道题按知识脉络重新编排，配面试官视角点评。</p><div class="meta">86 题 · 更新于本周</div></div>
+      <div class="card"><span class="tag">NETWORK</span><h3>计算机网络</h3><p>TCP 三次握手为什么不是两次？</p><div class="meta">64 题</div></div>
+      <div class="card"><span class="tag">DATABASE</span><h3>MySQL</h3><p>索引、事务与查询优化。</p><div class="meta">72 题</div></div>
+      <div class="card"><span class="tag">AI / LLM</span><h3>AI 大模型</h3><p>RAG、Agent 与 Prompt 工程。</p><div class="meta">58 题</div></div>
+      <div class="card"><span class="tag">OS</span><h3>操作系统</h3><p>进程线程、内存管理、IO 模型。</p><div class="meta">49 题</div></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
