@@ -1,7 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { SiteHeader } from "./site-header";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/banks" }));
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/banks",
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+
+vi.mock("@/lib/auth-client", () => ({
+  useSession: () => ({ data: null, isPending: false }),
+  signOut: vi.fn(),
+}));
 
 describe("SiteHeader", () => {
   it("渲染 logo 与三个主导航", () => {
