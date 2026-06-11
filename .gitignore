@@ -35,3 +35,6 @@ next-env.d.ts
 
 # Claude Code 本地设置
 .claude/settings.local.json
+
+# Playwright MCP 调试产物
+.playwright-mcp/
