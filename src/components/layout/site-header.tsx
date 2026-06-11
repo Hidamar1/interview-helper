@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { DuckIcon } from "@/components/duck/duck-icon";
 import { NavLink } from "./nav-link";
+import { UserMenu } from "@/components/auth/user-menu";
 
 export function SiteHeader() {
   return (
@@ -18,9 +18,7 @@ export function SiteHeader() {
           <NavLink href="/interview">开始面试</NavLink>
           <NavLink href="/profile">刷题记录</NavLink>
         </nav>
-        <Button size="sm" className="ml-auto rounded-full px-5">
-          登录
-        </Button>
+        <UserMenu />
       </div>
     </header>
   );
