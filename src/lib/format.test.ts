@@ -10,4 +10,10 @@ describe("formatCount", () => {
     expect(formatCount(2000)).toBe("2k");
     expect(formatCount(15600)).toBe("15.6k");
   });
+  it("边界与舍入", () => {
+    expect(formatCount(999)).toBe("999");
+    expect(formatCount(1000)).toBe("1k");
+    expect(formatCount(1050)).toBe("1.1k");
+    expect(formatCount(1999)).toBe("2k");
+  });
 });
