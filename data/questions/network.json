@@ -1,0 +1,506 @@
+{
+  "bank": {
+    "name": "计算机网络",
+    "slug": "network",
+    "description": "TCP/IP · HTTP · HTTPS · DNS",
+    "icon": "🔌",
+    "category": "网络",
+    "sortOrder": 6
+  },
+  "questions": [
+    {
+      "title": "TCP 三次握手的过程是怎样的？为什么不是两次？",
+      "slug": "network-tcp-three-way-handshake",
+      "answerBrief": "客户端发 SYN，服务端回 SYN+ACK，客户端再回 ACK，双方各确认一次收发能力并同步初始序列号。两次无法防止失效的历史连接请求建立连接，也无法确认客户端的接收能力。",
+      "answerDetail": "## 握手过程\n\n1. 第一次：客户端发送 `SYN`，携带初始序列号 `seq=x`，进入 `SYN_SENT` 状态。\n2. 第二次：服务端回复 `SYN+ACK`，`seq=y, ack=x+1`，进入 `SYN_RCVD` 状态。\n3. 第三次：客户端回复 `ACK`，`ack=y+1`，双方进入 `ESTABLISHED` 状态。\n\n## 为什么不是两次\n\n| 角度 | 两次握手的问题 |\n| --- | --- |\n| 历史连接 | 一个早已失效、在网络中滞留的 SYN 报文延迟到达，服务端会误以为是新请求并建立连接，造成资源浪费。 |\n| 双向确认 | 两次只能确认「服务端能收、客户端能发」，无法确认客户端的接收能力。三次才能让双方都确认自己和对方的收发能力。 |\n| 序列号同步 | 双方都需要把自己的初始序列号告知对方并得到确认，三次刚好完成两个方向的同步。 |\n\n## 小结\n\n三次握手用最少的交互让双方各自确认了「我能发、你能收、你能发、我能收」，并安全地同步了初始序列号。"
+      ,
+      "followUps": [
+        { "question": "第三次握手的 ACK 丢失会发生什么？", "hint": "服务端处于 SYN_RCVD 超时重传 SYN+ACK，客户端若已发数据则携带的 ACK 可补救。" },
+        { "question": "什么是 SYN Flood 攻击？如何防御？", "hint": "伪造大量 SYN 耗尽半连接队列；用 SYN Cookie、缩短超时、增大队列防御。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["网络", "TCP", "高频"]
+    },
+    {
+      "title": "TCP 四次挥手的过程是怎样的？为什么需要四次？",
+      "slug": "network-tcp-four-way-wavehand",
+      "answerBrief": "主动方发 FIN，被动方回 ACK，被动方处理完再发 FIN，主动方回 ACK。因为 TCP 是全双工，关闭需要两个方向各自独立地发 FIN 和确认，被动方的 ACK 与 FIN 通常不能合并所以是四次。",
+      "answerDetail": "## 挥手过程\n\n1. 第一次：主动方发 `FIN`，进入 `FIN_WAIT_1`。\n2. 第二次：被动方回 `ACK`，进入 `CLOSE_WAIT`；主动方进入 `FIN_WAIT_2`。\n3. 第三次：被动方数据发完后发 `FIN`，进入 `LAST_ACK`。\n4. 第四次：主动方回 `ACK`，进入 `TIME_WAIT`，等待 `2MSL` 后关闭；被动方收到后直接 `CLOSED`。\n\n## 为什么是四次\n\nTCP 是全双工，每个方向的关闭是独立的。被动方收到 FIN 后只能先确认「我知道你不再发了」，但自己可能还有数据要发，所以 ACK 和自己的 FIN 不能合并，必须分两步，于是变成四次。\n\n## 为什么有 TIME_WAIT\n\n- 保证最后的 ACK 能可靠到达，若丢失被动方会重传 FIN，主动方可再次回复。\n- 让本次连接的旧报文在网络中自然消亡，避免污染下一个相同四元组的新连接。"
+      ,
+      "followUps": [
+        { "question": "什么情况下四次挥手会变成三次？", "hint": "被动方没有数据要发时，ACK 和 FIN 可合并（延迟确认场景）。" },
+        { "question": "TIME_WAIT 过多会有什么影响？", "hint": "占用端口和内存，可能导致无法建立新连接；可调 tcp_tw_reuse 等参数。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["网络", "TCP", "高频"]
+    },
+    {
+      "title": "TIME_WAIT 状态有什么作用？为什么要等 2MSL？",
+      "slug": "network-tcp-time-wait-2msl",
+      "answerBrief": "主动关闭方在发出最后 ACK 后进入 TIME_WAIT，等待 2MSL。一是保证最后 ACK 丢失时能重发响应对方重传的 FIN，二是让本连接的旧报文在网络中彻底消失，避免干扰相同四元组的新连接。",
+      "answerDetail": "## 什么是 MSL\n\nMSL（Maximum Segment Lifetime）是报文在网络中存活的最长时间，一般取 30 秒或 2 分钟。2MSL 即一个报文来回的最大时间。\n\n## 两个作用\n\n1. **可靠关闭**：若主动方发出的最后一个 ACK 丢失，被动方会因超时重传 FIN。主动方停留 2MSL 期间能收到重传的 FIN 并再次回 ACK，保证被动方正常关闭。\n2. **清除旧报文**：等待 2MSL 可让本次连接残留在网络中的报文全部过期消失，防止它们被误认为属于使用相同四元组的新连接。\n\n## 带来的问题与优化\n\n```bash\n# 高并发短连接的服务端可能积压大量 TIME_WAIT\nnet.ipv4.tcp_tw_reuse = 1   # 允许复用 TIME_WAIT 连接（客户端方向）\nnet.ipv4.tcp_max_tw_buckets = 5000\n```\n\n注意 `tcp_tw_recycle` 在 NAT 环境下有风险，新内核已移除。"
+      ,
+      "followUps": [
+        { "question": "为什么是主动关闭方进入 TIME_WAIT 而不是被动方？", "hint": "主动方发最后一个 ACK，需要兜底重传，被动方收到 ACK 即可直接 CLOSED。" },
+        { "question": "服务端出现大量 CLOSE_WAIT 说明什么？", "hint": "应用层没有及时 close 套接字，通常是代码 bug 没释放连接。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "TCP", "高频"]
+    },
+    {
+      "title": "TCP 如何保证可靠传输？",
+      "slug": "network-tcp-reliable-transmission",
+      "answerBrief": "通过序列号与确认应答保证有序不丢、超时重传与快速重传弥补丢包、校验和检测错误、滑动窗口做流量控制、拥塞控制避免网络过载，多种机制配合实现可靠传输。",
+      "answerDetail": "## 核心机制\n\n| 机制 | 作用 |\n| --- | --- |\n| 序列号 / 确认应答 | 每个字节都有序号，接收方用 ACK 确认，保证有序且不重复。 |\n| 超时重传 | 发出报文后启动定时器，超时未收到 ACK 就重传。 |\n| 快速重传 | 收到 3 个重复 ACK 立即重传，不等超时。 |\n| 校验和 | 检测报文在传输中是否损坏，损坏则丢弃。 |\n| 流量控制 | 滑动窗口根据接收方缓冲区调整发送速率。 |\n| 拥塞控制 | 慢启动、拥塞避免、快重传、快恢复，避免压垮网络。 |\n\n## 数据流动示意\n\n```\n发送方 ──seq=1..100──▶ 接收方\n发送方 ◀──ack=101──── 接收方（确认收到 1~100）\n```\n\n## 小结\n\n可靠性不是单一机制，而是「确认重传 + 排序去重 + 校验 + 流控 + 拥塞控制」共同作用的结果。"
+      ,
+      "followUps": [
+        { "question": "超时重传的 RTO 是怎么计算的？", "hint": "基于 RTT 的加权平均与偏差动态估算，Jacobson 算法。" },
+        { "question": "快速重传相比超时重传的优势？", "hint": "无需等待定时器超时，3 个重复 ACK 即触发，恢复更快。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "TCP", "高频"]
+    },
+    {
+      "title": "TCP 滑动窗口和流量控制是如何工作的？",
+      "slug": "network-tcp-sliding-window-flow-control",
+      "answerBrief": "接收方在 ACK 中通过窗口字段告知自己剩余的接收缓冲区大小，发送方据此控制未确认数据量，避免发送过快淹没接收方。窗口随确认动态滑动，窗口为 0 时发送方暂停并定时探测。",
+      "answerDetail": "## 滑动窗口\n\n发送方维护一个发送窗口，窗口内的字节可以连续发出而无需逐个等待 ACK。随着 ACK 到达，窗口左边界右移（确认已收），右边界根据接收方通告窗口右移，形成「滑动」。\n\n```\n|已确认|可发送未确认|可立即发送|不可发送|\n        └────── 发送窗口 ──────┘\n```\n\n## 流量控制\n\n接收方在每个 ACK 的 `Window` 字段通告剩余缓冲区大小（rwnd）。发送方的实际可发送量取 `min(rwnd, cwnd)`，保证不会发得比接收方处理得快。\n\n## 零窗口与探测\n\n当接收方缓冲区满，会通告窗口为 0，发送方暂停发送。为避免接收方后续的「窗口更新」报文丢失导致死锁，发送方会启动**持续计时器**，定期发送窗口探测报文。\n\n## 糊涂窗口综合症\n\n接收方每次只腾出少量空间就通告，导致小包频繁。解决：接收方等缓冲区有较大空间再通告（David Clark 方案），发送方用 Nagle 算法合并小包。"
+      ,
+      "followUps": [
+        { "question": "Nagle 算法解决什么问题？什么时候要关闭它？", "hint": "合并小包减少报文数；低延迟交互如游戏/SSH 需关闭（TCP_NODELAY）。" },
+        { "question": "流量控制和拥塞控制有什么区别？", "hint": "流控针对接收方处理能力（rwnd），拥塞控制针对网络容量（cwnd）。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "TCP"]
+    },
+    {
+      "title": "TCP 拥塞控制的四个算法分别是什么？",
+      "slug": "network-tcp-congestion-control",
+      "answerBrief": "慢启动让 cwnd 指数增长试探带宽，到达阈值后进入拥塞避免改为线性增长，发生超时则大幅降窗重新慢启动，收到三个重复 ACK 则快重传并快恢复（窗口减半线性增长），避免压垮网络。",
+      "answerDetail": "## 四个核心算法\n\n1. **慢启动（Slow Start）**：cwnd 从 1 个 MSS 开始，每收到一个 ACK 翻倍，呈指数增长，快速试探可用带宽，直到达到慢启动阈值 `ssthresh`。\n2. **拥塞避免（Congestion Avoidance）**：cwnd 超过 ssthresh 后改为每个 RTT 增加 1 个 MSS，线性增长，谨慎逼近网络极限。\n3. **快重传（Fast Retransmit）**：收到 3 个重复 ACK 立即重传丢失报文，不等超时。\n4. **快恢复（Fast Recovery）**：快重传后将 ssthresh 设为当前 cwnd 一半，cwnd 设为新 ssthresh，进入拥塞避免，而非重新慢启动。\n\n## 拥塞判断与反应\n\n| 拥塞信号 | 反应 |\n| --- | --- |\n| 超时（RTO） | ssthresh = cwnd/2，cwnd 重置为 1，重新慢启动（严重） |\n| 三个重复 ACK | 快重传 + 快恢复（轻微，网络仍能传输） |\n\n## 演进\n\n现代内核默认采用 CUBIC，Google 提出的 BBR 则基于带宽和 RTT 建模，对长肥管道更友好。"
+      ,
+      "followUps": [
+        { "question": "慢启动为什么叫「慢」启动却是指数增长？", "hint": "起点低（1 MSS），相对于直接占满带宽是「慢」的试探，增速本身是指数。" },
+        { "question": "BBR 相比 CUBIC 有什么改进？", "hint": "基于带宽和 RTT 建模主动探测，不依赖丢包判断拥塞，弱网吞吐更高。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["网络", "TCP", "高频"]
+    },
+    {
+      "title": "TCP 和 UDP 有什么区别？各自适用什么场景？",
+      "slug": "network-tcp-vs-udp",
+      "answerBrief": "TCP 面向连接、可靠有序、有流量与拥塞控制，开销大，适合文件传输、网页等；UDP 无连接、不保证可靠和顺序，头部小、延迟低，适合音视频、直播、DNS、游戏等容忍少量丢包但要求实时的场景。",
+      "answerDetail": "## 对比表\n\n| 维度 | TCP | UDP |\n| --- | --- | --- |\n| 连接 | 面向连接（三次握手） | 无连接 |\n| 可靠性 | 可靠，确认重传 | 不可靠，尽力交付 |\n| 顺序 | 保证有序 | 不保证 |\n| 流量/拥塞控制 | 有 | 无 |\n| 头部开销 | 20 字节起 | 8 字节 |\n| 传输方式 | 字节流 | 数据报 |\n| 通信 | 一对一 | 支持一对多/多对多（广播/组播） |\n\n## 适用场景\n\n- **TCP**：HTTP、文件下载、邮件、远程登录等要求数据完整的场景。\n- **UDP**：音视频通话、直播、在线游戏、DNS 查询、QUIC 等要求低延迟、可容忍少量丢包的场景。\n\n## 补充\n\nHTTP/3 用基于 UDP 的 QUIC，在用户态实现了类似 TCP 的可靠传输与多路复用，兼顾低延迟与可靠性。"
+      ,
+      "followUps": [
+        { "question": "如何在 UDP 上实现可靠传输？", "hint": "应用层加序号、确认、重传、拥塞控制，如 QUIC、KCP。" },
+        { "question": "为什么 DNS 查询主要用 UDP？", "hint": "查询响应短、无需建连、延迟低；超过 512 字节或区域传送才用 TCP。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["网络", "TCP", "UDP", "高频"]
+    },
+    {
+      "title": "什么是 TCP 粘包和拆包？如何解决？",
+      "slug": "network-tcp-sticky-packet",
+      "answerBrief": "TCP 是字节流，没有消息边界，多个应用层包可能被合并（粘包）或一个包被拆开（拆包）发送。解决方式是在应用层定义边界，如固定长度、特殊分隔符、或在包头声明消息长度。",
+      "answerDetail": "## 为什么会粘包/拆包\n\nTCP 把数据看作无边界的字节流，发送方的 Nagle 算法会合并小包，接收方按缓冲区批量读取，MSS 限制又会把大包拆开。这些都导致应用读到的字节不一定对应一条完整的业务消息。\n\n## 常见解决方案\n\n| 方案 | 说明 |\n| --- | --- |\n| 固定长度 | 每条消息定长，不足补齐，简单但浪费。 |\n| 分隔符 | 用特殊字符（如 `\\n`）标记结尾，需转义内容中的分隔符。 |\n| 长度字段 | 包头携带消息体长度，最常用、最灵活。 |\n\n## 长度字段示例\n\n```\n+--------+------------------+\n| len(4) |   body(len 字节)  |\n+--------+------------------+\n```\n\nNetty 提供 `LengthFieldBasedFrameDecoder`、`LineBasedFrameDecoder` 等开箱即用的解码器处理这些情况。\n\n## 注意\n\nUDP 是数据报协议，有天然边界，不存在粘包问题。"
+      ,
+      "followUps": [
+        { "question": "为什么 UDP 不会粘包？", "hint": "UDP 是面向数据报的，每个 send 对应一个独立报文，保留边界。" },
+        { "question": "Netty 中用什么解码器处理拆包？", "hint": "LengthFieldBasedFrameDecoder 按长度字段拆帧。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "TCP", "高频"]
+    },
+    {
+      "title": "HTTP 报文的结构是怎样的？",
+      "slug": "network-http-message-structure",
+      "answerBrief": "HTTP 报文分请求和响应。请求由请求行（方法、URL、版本）、请求头、空行、请求体组成；响应由状态行（版本、状态码、原因短语）、响应头、空行、响应体组成。头与体之间用空行分隔。",
+      "answerDetail": "## 请求报文\n\n```\nGET /index.html HTTP/1.1      ← 请求行\nHost: www.example.com         ← 请求头\nUser-Agent: Mozilla/5.0\nAccept: text/html\n                              ← 空行\n（请求体，GET 通常为空）\n```\n\n## 响应报文\n\n```\nHTTP/1.1 200 OK               ← 状态行\nContent-Type: text/html       ← 响应头\nContent-Length: 138\n                              ← 空行\n<html>...</html>              ← 响应体\n```\n\n## 三部分总结\n\n| 部分 | 请求 | 响应 |\n| --- | --- | --- |\n| 起始行 | 方法 + URL + 版本 | 版本 + 状态码 + 原因短语 |\n| 头部 | 描述请求的元信息 | 描述响应的元信息 |\n| 实体 | 提交的数据 | 返回的资源 |\n\n空行（CRLF）是头部与实体之间的强制分隔符，缺失会导致解析错误。"
+      ,
+      "followUps": [
+        { "question": "Content-Length 和 Transfer-Encoding 有什么关系？", "hint": "前者声明定长，后者 chunked 分块传输不预知长度，二者互斥。" },
+        { "question": "为什么头部和实体之间要有空行？", "hint": "作为分界标志，解析器据此判断头部结束、实体开始。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["网络", "HTTP"]
+    },
+    {
+      "title": "HTTP 常见的请求方法有哪些？GET 和 POST 的区别？",
+      "slug": "network-http-methods-get-vs-post",
+      "answerBrief": "常见方法有 GET、POST、PUT、DELETE、HEAD、OPTIONS、PATCH。GET 用于获取资源、参数在 URL、可缓存、幂等且安全；POST 用于提交数据、参数在请求体、不可缓存、非幂等，更适合敏感和大量数据。",
+      "answerDetail": "## 常见方法\n\n| 方法 | 用途 | 幂等 | 安全 |\n| --- | --- | --- | --- |\n| GET | 获取资源 | 是 | 是 |\n| POST | 提交数据 | 否 | 否 |\n| PUT | 整体更新/创建 | 是 | 否 |\n| DELETE | 删除资源 | 是 | 否 |\n| HEAD | 只取头部 | 是 | 是 |\n| OPTIONS | 查询支持的方法 | 是 | 是 |\n| PATCH | 局部更新 | 否 | 否 |\n\n## GET vs POST\n\n| 维度 | GET | POST |\n| --- | --- | --- |\n| 参数位置 | URL 查询串 | 请求体 |\n| 长度限制 | 受 URL 长度限制 | 理论无限制 |\n| 缓存 | 可被缓存 | 默认不缓存 |\n| 幂等/安全 | 幂等且安全 | 非幂等 |\n| 数据可见性 | 暴露在 URL/历史 | 相对隐蔽 |\n\n## 注意\n\n「安全」指不修改服务器资源，「幂等」指多次请求结果一致。POST 并非更安全的加密手段，敏感数据仍需 HTTPS。"
+      ,
+      "followUps": [
+        { "question": "PUT 和 POST 的区别？", "hint": "PUT 幂等、指定资源整体替换；POST 非幂等、常用于创建。" },
+        { "question": "幂等性在接口设计中有什么意义？", "hint": "重试不会产生副作用，常配合幂等 token 防重复提交。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["网络", "HTTP", "高频"]
+    },
+    {
+      "title": "HTTP 常见状态码有哪些？分别代表什么含义？",
+      "slug": "network-http-status-codes",
+      "answerBrief": "状态码按首位分五类：1xx 信息、2xx 成功、3xx 重定向、4xx 客户端错误、5xx 服务端错误。常见如 200 成功、301/302 重定向、304 缓存命中、400 请求错误、401 未认证、403 禁止、404 未找到、500 服务器错误、502/504 网关问题。",
+      "answerDetail": "## 五大类\n\n| 类别 | 含义 |\n| --- | --- |\n| 1xx | 信息性，请求已接收继续处理 |\n| 2xx | 成功 |\n| 3xx | 重定向 |\n| 4xx | 客户端错误 |\n| 5xx | 服务端错误 |\n\n## 高频状态码\n\n| 码 | 含义 |\n| --- | --- |\n| 200 | 请求成功 |\n| 301 | 永久重定向 |\n| 302 | 临时重定向 |\n| 304 | 资源未修改，使用缓存 |\n| 400 | 请求语法/参数错误 |\n| 401 | 未认证 |\n| 403 | 已认证但无权限 |\n| 404 | 资源不存在 |\n| 500 | 服务器内部错误 |\n| 502 | 网关收到无效响应 |\n| 503 | 服务不可用（过载/维护） |\n| 504 | 网关超时 |\n\n## 易混点\n\n- 301 会被浏览器和搜索引擎缓存，302 不会。\n- 401 是「未认证」，403 是「认证了但没权限」。\n- 502 与 504 都发生在网关/代理：前者后端返回非法响应，后者后端超时未响应。"
+      ,
+      "followUps": [
+        { "question": "301 和 302 在 SEO 和缓存上有什么区别？", "hint": "301 永久会被缓存并传递权重，302 临时不缓存。" },
+        { "question": "502 和 504 的根因有何不同？", "hint": "502 后端返回非法响应，504 后端超时未响应。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["网络", "HTTP", "高频"]
+    },
+    {
+      "title": "HTTP/1.1、HTTP/2、HTTP/3 有哪些主要区别？",
+      "slug": "network-http-version-comparison",
+      "answerBrief": "1.1 默认长连接但有队头阻塞、文本协议；2 引入二进制分帧、多路复用、头部压缩和服务端推送，解决应用层队头阻塞但仍受 TCP 层阻塞；3 改用基于 UDP 的 QUIC，彻底消除 TCP 队头阻塞并加快握手。",
+      "answerDetail": "## 演进对比\n\n| 特性 | HTTP/1.1 | HTTP/2 | HTTP/3 |\n| --- | --- | --- | --- |\n| 传输层 | TCP | TCP | QUIC（UDP） |\n| 编码 | 文本 | 二进制分帧 | 二进制分帧 |\n| 多路复用 | 无（靠多连接） | 有 | 有 |\n| 头部压缩 | 无 | HPACK | QPACK |\n| 队头阻塞 | 应用层阻塞 | 仅 TCP 层阻塞 | 基本消除 |\n| 握手 | TCP+TLS 多个 RTT | TCP+TLS | 0/1-RTT |\n\n## 关键点\n\n- **HTTP/2 多路复用**：同一连接上多个请求并发，解决了 1.1 的应用层队头阻塞，但底层 TCP 丢一个包会阻塞所有流。\n- **HTTP/3 用 QUIC**：在 UDP 上实现独立的流，单个流丢包不影响其他流，并把 TLS 握手与连接握手合并，显著降低建连延迟。\n\n## 小结\n\n核心矛盾是「队头阻塞」：1.1 在应用层、2 在传输层、3 通过 QUIC 在两层都解决。"
+      ,
+      "followUps": [
+        { "question": "HTTP/2 为什么没有彻底解决队头阻塞？", "hint": "多路复用在应用层，TCP 仍是单一字节流，丢包阻塞全部流。" },
+        { "question": "QUIC 为什么基于 UDP 而不是改进 TCP？", "hint": "TCP 由内核和中间设备固化，难升级；UDP 在用户态可快速迭代。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["网络", "HTTP", "高频"]
+    },
+    {
+      "title": "HTTP 长连接（Keep-Alive）是什么？有什么好处？",
+      "slug": "network-http-keep-alive",
+      "answerBrief": "长连接指一次 TCP 连接处理多个 HTTP 请求响应，避免每次请求都重新三次握手和四次挥手。HTTP/1.1 默认开启，通过 Connection: keep-alive 维持，减少建连开销、降低延迟、节省服务器资源。",
+      "answerDetail": "## 短连接的问题\n\nHTTP/1.0 默认每个请求建立一条新 TCP 连接，用完即关。一个网页有几十个资源就要反复握手挥手，开销巨大、延迟高。\n\n## 长连接机制\n\nHTTP/1.1 默认开启持久连接，多个请求复用同一条 TCP 连接：\n\n```\nConnection: keep-alive\nKeep-Alive: timeout=60, max=100\n```\n\n`timeout` 表示空闲多久关闭，`max` 表示该连接最多处理多少请求。\n\n## 好处\n\n- 省去重复握手挥手，降低延迟。\n- 减少 TCP 慢启动带来的吞吐损失。\n- 降低 CPU 与内存占用。\n\n## 注意\n\n长连接并不等于多路复用。HTTP/1.1 同一连接上请求仍是串行的（队头阻塞），真正的并发多路复用要到 HTTP/2。空闲连接会占用资源，需合理设置超时。"
+      ,
+      "followUps": [
+        { "question": "长连接和 HTTP/2 多路复用有什么区别？", "hint": "长连接复用连接但请求串行；多路复用同一连接可并发多个流。" },
+        { "question": "Keep-Alive 的连接什么时候会被关闭？", "hint": "空闲超过 timeout、达到 max 请求数、或服务端主动关闭。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "HTTP"]
+    },
+    {
+      "title": "HTTP 中常见的请求头和响应头有哪些？",
+      "slug": "network-http-common-headers",
+      "answerBrief": "常见请求头有 Host、User-Agent、Accept、Cookie、Authorization、Content-Type、Referer；常见响应头有 Content-Type、Content-Length、Set-Cookie、Cache-Control、ETag、Location、Access-Control-Allow-Origin。它们承载内容协商、缓存、认证与跨域等信息。",
+      "answerDetail": "## 常见请求头\n\n| 头 | 作用 |\n| --- | --- |\n| Host | 目标主机，虚拟主机必需 |\n| User-Agent | 客户端标识 |\n| Accept / Accept-Encoding / Accept-Language | 内容协商：类型、压缩、语言 |\n| Cookie | 携带会话标识 |\n| Authorization | 携带认证凭证（如 Bearer Token） |\n| Content-Type | 请求体的媒体类型 |\n| Referer | 来源页面 |\n| If-None-Match / If-Modified-Since | 条件请求，配合缓存 |\n\n## 常见响应头\n\n| 头 | 作用 |\n| --- | --- |\n| Content-Type | 响应体类型 |\n| Content-Length | 响应体长度 |\n| Set-Cookie | 设置 Cookie |\n| Cache-Control | 缓存策略 |\n| ETag / Last-Modified | 资源版本标识，用于协商缓存 |\n| Location | 重定向目标 |\n| Access-Control-Allow-Origin | CORS 允许的来源 |\n\n## 小结\n\n头部是 HTTP 的「元信息载体」，围绕内容协商、缓存控制、身份认证、跨域四大主题，理解它们能看懂大多数网络问题。"
+      ,
+      "followUps": [
+        { "question": "Cache-Control 有哪些常用指令？", "hint": "max-age、no-cache、no-store、private/public、must-revalidate。" },
+        { "question": "ETag 和 Last-Modified 协商缓存的流程？", "hint": "客户端带 If-None-Match/If-Modified-Since，未变返回 304。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "HTTP"]
+    },
+    {
+      "title": "HTTP 和 HTTPS 有什么区别？",
+      "slug": "network-http-vs-https",
+      "answerBrief": "HTTPS 在 HTTP 与 TCP 之间加了 TLS/SSL 层，提供加密、完整性校验和身份认证。HTTP 明文传输、默认 80 端口、不安全；HTTPS 加密传输、默认 443 端口、需要证书，能防窃听、篡改和冒充，但有少量性能开销。",
+      "answerDetail": "## 核心区别\n\n| 维度 | HTTP | HTTPS |\n| --- | --- | --- |\n| 安全性 | 明文 | 加密（TLS） |\n| 端口 | 80 | 443 |\n| 证书 | 不需要 | 需要 CA 证书 |\n| 性能 | 略快 | 多一次握手，略有开销 |\n| 防护 | 无 | 防窃听、防篡改、防冒充 |\n\n## HTTPS 提供的三大保障\n\n1. **机密性**：对称加密保护传输内容不被窃听。\n2. **完整性**：消息认证码（MAC）保证数据未被篡改。\n3. **身份认证**：通过 CA 签发的证书验证服务端身份，防中间人冒充。\n\n## 性能考量\n\nTLS 握手会增加 1~2 个 RTT 和加解密开销，但通过会话复用（Session Resumption）、TLS 1.3 的 1-RTT/0-RTT、HTTP/2 多路复用等手段，开销已大幅降低，现代网站普遍全站 HTTPS。"
+      ,
+      "followUps": [
+        { "question": "TLS 1.3 相比 1.2 有哪些改进？", "hint": "握手减为 1-RTT、支持 0-RTT、移除不安全算法、强制前向安全。" },
+        { "question": "全站 HTTPS 后如何防止用户用 HTTP 访问？", "hint": "HSTS 响应头强制浏览器后续用 HTTPS，配合 301 跳转。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["网络", "HTTPS", "高频"]
+    },
+    {
+      "title": "HTTPS 的 TLS 握手过程是怎样的？",
+      "slug": "network-https-tls-handshake",
+      "answerBrief": "客户端发 ClientHello 带随机数和算法套件，服务端回 ServerHello、证书和自己的随机数，客户端验证证书后生成预主密钥用公钥加密发回，双方据三个随机数算出会话密钥，之后切换为对称加密通信。",
+      "answerDetail": "## TLS 1.2 经典握手\n\n1. **ClientHello**：客户端发送支持的 TLS 版本、加密套件、客户端随机数。\n2. **ServerHello**：服务端选定套件，返回服务端随机数。\n3. **Certificate**：服务端发送证书（含公钥）。\n4. **客户端验证**：校验证书链、有效期、域名；生成「预主密钥」用服务端公钥加密发回。\n5. **生成会话密钥**：双方用客户端随机数、服务端随机数、预主密钥计算出相同的对称会话密钥。\n6. **切换加密**：互发 Finished，之后全部用对称密钥加密通信。\n\n## 为什么混合加密\n\n```\n非对称加密（慢，安全交换密钥）→ 仅用于协商会话密钥\n对称加密（快）→ 用于后续大量数据传输\n```\n\n非对称算法解决「如何安全地把对称密钥告诉对方」，对称算法解决「如何高效加密大量数据」。\n\n## TLS 1.3 优化\n\n握手压缩到 1-RTT，支持 0-RTT 会话恢复，强制使用 ECDHE 实现前向安全。"
+      ,
+      "followUps": [
+        { "question": "为什么需要三个随机数生成会话密钥？", "hint": "增加随机性、防止重放，预主密钥结合双方随机数更难预测。" },
+        { "question": "什么是前向安全？TLS 如何实现？", "hint": "私钥泄露也无法解密历史流量；ECDHE 每次会话用临时密钥。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["网络", "HTTPS", "高频"]
+    },
+    {
+      "title": "对称加密和非对称加密的区别？HTTPS 为什么两者都用？",
+      "slug": "network-https-symmetric-asymmetric",
+      "answerBrief": "对称加密加解密用同一密钥，速度快但密钥分发难；非对称加密用公私钥对，安全但慢。HTTPS 用非对称加密安全地协商出对称会话密钥，再用对称加密传输数据，兼顾安全与性能。",
+      "answerDetail": "## 两种加密对比\n\n| 维度 | 对称加密 | 非对称加密 |\n| --- | --- | --- |\n| 密钥 | 同一把 | 公钥 + 私钥 |\n| 速度 | 快 | 慢（约慢几个数量级） |\n| 密钥分发 | 难（如何安全传密钥） | 易（公钥可公开） |\n| 代表算法 | AES、ChaCha20 | RSA、ECC |\n\n## HTTPS 的混合方案\n\n1. 握手阶段用**非对称加密**解决密钥分发难题：客户端用服务端公钥加密预主密钥，只有持有私钥的服务端能解开。\n2. 数据传输阶段用**对称加密**保证效率：双方用协商出的会话密钥高速加解密大量数据。\n\n## 为什么不全程非对称\n\n非对称加密计算量大，对每个数据包都做非对称运算会严重拖慢性能，因此只在握手时用一次。\n\n## 为什么不全程对称\n\n对称加密的密钥无法在不安全的网络中直接传输，需要非对称加密来「安全地交换这把对称钥匙」。"
+      ,
+      "followUps": [
+        { "question": "数字签名用的是公钥还是私钥加密？", "hint": "私钥签名、公钥验签，保证来源不可抵赖与完整性。" },
+        { "question": "ECC 相比 RSA 有什么优势？", "hint": "更短密钥达到同等安全强度，计算更快、更省资源。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "HTTPS"]
+    },
+    {
+      "title": "HTTPS 如何防止中间人攻击？证书链是如何验证的？",
+      "slug": "network-https-mitm-certificate-chain",
+      "answerBrief": "HTTPS 靠 CA 签发的数字证书验证服务端身份：浏览器用内置的根证书逐级验证证书链签名、有效期和域名，确认公钥确实属于该网站，中间人无法伪造受信任 CA 签名的证书，从而防止冒充。",
+      "answerDetail": "## 中间人攻击原理\n\n攻击者插在客户端和服务端之间，分别与双方建立连接并转发，从而窃听或篡改。若没有身份认证，客户端无法分辨对方是真实服务器还是中间人。\n\n## 证书如何防御\n\n服务端的公钥被 CA 用私钥签名形成证书。浏览器验证：\n\n1. 证书是否由受信任的 CA 签发（验证签名）。\n2. 证书是否在有效期内。\n3. 证书域名是否与访问域名匹配。\n4. 证书是否被吊销（CRL / OCSP）。\n\n中间人没有受信任 CA 的私钥，无法伪造合法签名的证书，浏览器会报警。\n\n## 证书链验证\n\n```\n根证书（浏览器内置，自签名）\n   └─ 中间 CA 证书（根 CA 签名）\n        └─ 服务器证书（中间 CA 签名）\n```\n\n浏览器从服务器证书出发，逐级用上层证书的公钥验证下层签名，直到到达内置受信任的根证书，整条链可信才通过。\n\n## 例外\n\n若用户主动安装了攻击者的根证书（如企业代理），则中间人可被信任，这也是抓包工具能解密 HTTPS 的原理。"
+      ,
+      "followUps": [
+        { "question": "为什么要有中间 CA 而不是根 CA 直接签发？", "hint": "根私钥离线保护，中间 CA 日常签发，泄露可吊销隔离风险。" },
+        { "question": "Charles/Fiddler 抓包 HTTPS 的原理是什么？", "hint": "让用户信任其根证书，充当受信任的中间人解密再转发。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["网络", "HTTPS", "高频"]
+    },
+    {
+      "title": "DNS 的解析过程是怎样的？",
+      "slug": "network-dns-resolution-process",
+      "answerBrief": "浏览器依次查浏览器缓存、操作系统缓存、hosts 文件、本地 DNS 服务器缓存，未命中则本地 DNS 从根域名服务器、顶级域服务器、权威域名服务器逐级迭代查询，拿到 IP 后逐层缓存返回。",
+      "answerDetail": "## 查询顺序\n\n1. **浏览器缓存**：先查自身 DNS 缓存。\n2. **操作系统缓存 / hosts**：查系统缓存和 hosts 文件。\n3. **本地 DNS 服务器（LDNS）**：通常是运营商或公共 DNS（如 8.8.8.8），命中缓存直接返回。\n4. **迭代查询**：LDNS 未命中时，向上逐级查询：\n\n```\n根域名服务器  →  返回 .com 顶级域服务器地址\n顶级域(TLD)服务器  →  返回 example.com 权威服务器地址\n权威域名服务器  →  返回最终 IP\n```\n\n## 递归与迭代\n\n- 客户端到 LDNS 是**递归查询**：LDNS 负责把最终结果查回来。\n- LDNS 到各级服务器是**迭代查询**：每级只返回下一步该问谁。\n\n## 缓存\n\n各级结果会按 TTL 缓存，缩短后续查询路径。合理的 TTL 在解析速度和变更生效之间权衡。"
+      ,
+      "followUps": [
+        { "question": "递归查询和迭代查询的区别？", "hint": "递归由被问者负责查到底，迭代只返回下一跳让你自己继续问。" },
+        { "question": "DNS 的 TTL 设置过大或过小有什么影响？", "hint": "过大变更生效慢，过小缓存命中率低、查询频繁。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "DNS", "高频"]
+    },
+    {
+      "title": "DNS 为什么主要使用 UDP？什么时候用 TCP？",
+      "slug": "network-dns-udp-tcp",
+      "answerBrief": "DNS 查询通常报文短、追求低延迟，UDP 无需建连、开销小最合适。当响应超过 512 字节（或 EDNS 协商的上限）发生截断，以及区域传送（主从同步）需要可靠有序传输时，会改用 TCP。",
+      "answerDetail": "## 为什么默认 UDP\n\n- DNS 查询和响应一般很小，一个 UDP 数据报即可装下。\n- 无需三次握手，延迟更低。\n- 服务器无需维护连接状态，能承载海量查询。\n\n## 何时使用 TCP\n\n| 场景 | 原因 |\n| --- | --- |\n| 响应被截断 | 超过 512 字节，响应头 TC 位置 1，客户端改用 TCP 重查。 |\n| 区域传送 | 主从 DNS 同步大量记录，必须可靠有序。 |\n| DNSSEC | 签名使响应变大，更易超限。 |\n\n## EDNS 扩展\n\nEDNS0 允许协商更大的 UDP 报文（如 4096 字节），减少回退到 TCP 的概率，但过大可能引发分片问题。\n\n## 小结\n\nUDP 负责日常高频小查询，TCP 兜底大响应和区域传送，二者分工互补。"
+      ,
+      "followUps": [
+        { "question": "DNS 响应的 TC 标志位是做什么的？", "hint": "Truncated，标记响应被截断，提示客户端改用 TCP 重查。" },
+        { "question": "什么是区域传送？为什么必须用 TCP？", "hint": "主从服务器同步整个区域记录，数据量大且要求完整可靠。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "DNS"]
+    },
+    {
+      "title": "什么是 DNS 劫持和 DNS 污染？如何防范？",
+      "slug": "network-dns-hijacking-pollution",
+      "answerBrief": "DNS 劫持是篡改解析结果把域名指向错误 IP，常发生在本地 DNS 或路由器；DNS 污染是在查询路径上注入伪造响应。防范手段包括使用可信公共 DNS、DNSSEC 签名校验、DoH/DoT 加密 DNS 流量。",
+      "answerDetail": "## 两种攻击\n\n| 类型 | 原理 | 发生位置 |\n| --- | --- | --- |\n| DNS 劫持 | 篡改解析记录，把域名解析到攻击者控制的 IP | 本地 DNS、路由器、运营商 |\n| DNS 污染 | 在查询路径中抢先注入伪造的 UDP 响应 | 网络链路中间节点 |\n\n## 危害\n\n用户访问正常域名却被导向钓鱼或广告页面，或服务不可达。\n\n## 防范手段\n\n1. **可信公共 DNS**：使用 8.8.8.8、1.1.1.1 等，减少运营商劫持。\n2. **DNSSEC**：对 DNS 记录做数字签名，客户端验证签名防篡改。\n3. **DoH / DoT**：DNS over HTTPS / over TLS，把 DNS 查询加密，防止链路监听和注入。\n\n## 补充\n\nDoH 把 DNS 流量隐藏在 443 端口的 HTTPS 中，最难被中间人识别和污染，已被主流浏览器支持。"
+      ,
+      "followUps": [
+        { "question": "DNSSEC 解决了什么问题？没解决什么？", "hint": "保证记录完整性和来源真实，但不加密查询内容（隐私仍暴露）。" },
+        { "question": "DoH 和 DoT 有什么区别？", "hint": "DoH 走 443 端口混入 HTTPS 难识别，DoT 走专用 853 端口更易管控。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "DNS"]
+    },
+    {
+      "title": "Cookie 和 Session 有什么区别？",
+      "slug": "network-cookie-vs-session",
+      "answerBrief": "Cookie 存在客户端浏览器、随请求自动携带、容量小且不安全；Session 存在服务端、用 SessionID（通常存于 Cookie）标识用户、相对安全但占用服务器内存。二者常配合：Cookie 存 ID，Session 存实际数据。",
+      "answerDetail": "## 对比\n\n| 维度 | Cookie | Session |\n| --- | --- | --- |\n| 存储位置 | 客户端浏览器 | 服务端 |\n| 安全性 | 较低，可被读取篡改 | 较高，数据不出服务端 |\n| 容量 | 小（约 4KB） | 受服务器内存限制 |\n| 生命周期 | 可设过期时间，持久化 | 默认随会话或超时失效 |\n| 性能 | 不占服务器资源 | 占用服务器存储 |\n\n## 协作流程\n\n1. 用户登录，服务端创建 Session 并生成 SessionID。\n2. SessionID 通过 `Set-Cookie` 写入浏览器。\n3. 后续请求自动带上 Cookie 中的 SessionID。\n4. 服务端据 ID 找到对应 Session 数据识别用户。\n\n## 分布式问题\n\n多台服务器时 Session 无法共享，解决方案：Session 复制、粘性会话、集中存储（如 Redis），或干脆改用无状态的 Token 方案。"
+      ,
+      "followUps": [
+        { "question": "分布式系统中 Session 共享有哪些方案？", "hint": "Session 复制、粘性会话、集中存储到 Redis，或改用 Token。" },
+        { "question": "Cookie 的 HttpOnly 和 Secure 属性有什么作用？", "hint": "HttpOnly 禁 JS 读取防 XSS，Secure 仅 HTTPS 传输。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["网络", "Cookie", "Session", "高频"]
+    },
+    {
+      "title": "Token 和 JWT 是什么？相比 Session 有什么优势？",
+      "slug": "network-token-jwt",
+      "answerBrief": "Token 是服务端签发给客户端的身份凭证，请求时携带验证。JWT 是一种自包含的 Token，由头部、载荷、签名三段组成，服务端无需存储即可校验，天然无状态、易于分布式扩展和跨域，但难以主动失效。",
+      "answerDetail": "## JWT 结构\n\n```\nHeader.Payload.Signature\n```\n\n- **Header**：声明算法（如 HS256）和类型。\n- **Payload**：存放用户信息和过期时间等声明（Base64 编码，非加密）。\n- **Signature**：用密钥对前两段签名，防篡改。\n\n## 相比 Session 的优势\n\n| 维度 | Session | JWT |\n| --- | --- | --- |\n| 状态 | 有状态（服务端存储） | 无状态（自包含） |\n| 扩展 | 需共享存储 | 任意节点可校验 |\n| 跨域 | Cookie 受限 | 放 Header 灵活 |\n| 服务器开销 | 占内存 | 几乎无 |\n\n## 缺点\n\n- 签发后难以主动失效（需黑名单或缩短有效期 + Refresh Token）。\n- Payload 仅编码不加密，不能放敏感信息。\n- Token 较大，每次请求都携带增加流量。\n\n## 小结\n\nJWT 用「无状态自包含」换取了横向扩展能力，代价是失效控制变复杂，常配合短期 Access Token + 长期 Refresh Token 使用。"
+      ,
+      "followUps": [
+        { "question": "JWT 如何实现主动登出/失效？", "hint": "维护黑名单、缩短有效期配合 Refresh Token、或改密钥。" },
+        { "question": "JWT 的 Payload 能放密码等敏感信息吗？", "hint": "不能，Payload 只是 Base64 编码，任何人都能解出明文。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "Token", "JWT", "高频"]
+    },
+    {
+      "title": "什么是跨域？同源策略和 CORS 是怎么回事？",
+      "slug": "network-cross-origin-cors",
+      "answerBrief": "同源指协议、域名、端口都相同，浏览器的同源策略禁止跨源读取响应以保护安全。CORS 通过服务端返回 Access-Control-Allow-Origin 等响应头授权特定跨域请求，复杂请求前还会发 OPTIONS 预检。",
+      "answerDetail": "## 同源策略\n\n同源要求**协议、域名、端口**三者完全一致。同源策略限制脚本读取非同源的响应，防止恶意站点窃取数据。\n\n## CORS 机制\n\n服务端通过响应头声明允许的跨域规则：\n\n```\nAccess-Control-Allow-Origin: https://app.example.com\nAccess-Control-Allow-Methods: GET, POST, PUT\nAccess-Control-Allow-Headers: Content-Type, Authorization\nAccess-Control-Allow-Credentials: true\n```\n\n## 简单请求 vs 预检请求\n\n| 类型 | 条件 | 行为 |\n| --- | --- | --- |\n| 简单请求 | GET/POST/HEAD 且头部简单 | 直接发送，浏览器校验响应头 |\n| 预检请求 | 自定义头、PUT/DELETE 等 | 先发 OPTIONS 询问是否允许 |\n\n## 其他跨域方案\n\nJSONP（仅 GET、利用 script 标签）、Nginx 反向代理、WebSocket（不受同源策略限制响应读取）。现代项目以 CORS 为主。"
+      ,
+      "followUps": [
+        { "question": "什么样的请求会触发 CORS 预检？", "hint": "非简单方法、自定义头、特殊 Content-Type 会先发 OPTIONS。" },
+        { "question": "携带 Cookie 的跨域请求要注意什么？", "hint": "需 Allow-Credentials:true 且 Allow-Origin 不能为 *。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "HTTP", "高频"]
+    },
+    {
+      "title": "WebSocket 是什么？和 HTTP 有什么区别？",
+      "slug": "network-websocket",
+      "answerBrief": "WebSocket 是基于 TCP 的全双工通信协议，通过一次 HTTP 升级握手建立持久连接，之后双方可随时主动推送数据。相比 HTTP 的请求响应模式，它适合实时聊天、推送、协同等需要服务端主动通信的场景。",
+      "answerDetail": "## 建立过程\n\nWebSocket 借助 HTTP 完成升级握手：\n\n```\nGET /chat HTTP/1.1\nUpgrade: websocket\nConnection: Upgrade\nSec-WebSocket-Key: dGhlIHNhbXBsZQ==\n```\n\n服务端返回 `101 Switching Protocols` 后，连接升级为 WebSocket，之后不再走 HTTP 报文，而是收发轻量的数据帧。\n\n## 与 HTTP 对比\n\n| 维度 | HTTP | WebSocket |\n| --- | --- | --- |\n| 通信方向 | 客户端请求、服务端响应 | 全双工，双方可主动发 |\n| 连接 | 短/长连接但请求驱动 | 持久连接 |\n| 头部开销 | 每次请求都带完整头 | 握手后帧头很小 |\n| 服务端推送 | 需轮询/SSE 变通 | 原生支持 |\n\n## 适用场景\n\n在线聊天、实时弹幕、股票行情、多人协同编辑、消息推送等需要服务端主动、低延迟、双向通信的场景。轮询和长轮询是其出现前的替代方案。"
+      ,
+      "followUps": [
+        { "question": "WebSocket 和 SSE（Server-Sent Events）怎么选？", "hint": "SSE 单向服务端推、基于 HTTP 简单；WebSocket 双向更通用。" },
+        { "question": "WebSocket 如何保持连接和检测断线？", "hint": "心跳机制定时发 ping/pong 帧，超时未响应判定断开重连。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "WebSocket", "高频"]
+    },
+    {
+      "title": "在浏览器输入 URL 到页面展示，中间经历了哪些过程？",
+      "slug": "network-url-to-page-process",
+      "answerBrief": "依次是 URL 解析、DNS 域名解析拿到 IP、TCP 三次握手（HTTPS 还有 TLS 握手）、发送 HTTP 请求、服务端处理并返回响应、浏览器解析 HTML 构建 DOM/CSSOM、渲染绘制页面，最后断开或复用连接。",
+      "answerDetail": "## 完整流程\n\n1. **URL 解析**：拆出协议、域名、端口、路径、查询参数。\n2. **DNS 解析**：经浏览器缓存→系统缓存→LDNS→根/TLD/权威服务器，得到 IP。\n3. **建立连接**：与服务器 TCP 三次握手；HTTPS 还要进行 TLS 握手协商密钥。\n4. **发送请求**：构造 HTTP 请求报文发往服务器。\n5. **服务端处理**：负载均衡、应用处理、查数据库，返回响应（可能经 CDN/缓存）。\n6. **浏览器接收**：根据状态码处理（如 3xx 重定向、304 用缓存）。\n7. **渲染**：解析 HTML 构建 DOM，解析 CSS 构建 CSSOM，合并为渲染树，经布局（Layout）、绘制（Paint）、合成（Composite）显示。期间遇到 JS 可能阻塞解析，遇到子资源继续发请求。\n8. **连接处理**：HTTP/1.1 默认保持长连接复用，必要时四次挥手关闭。\n\n## 涉及的协议层\n\n```\nDNS → TCP/IP → TLS → HTTP → HTML/CSS/JS 渲染\n```\n\n这道题串联了 DNS、TCP、TLS、HTTP、浏览器渲染整条链路，是综合性高频题。"
+      ,
+      "followUps": [
+        { "question": "浏览器渲染过程中的回流和重绘有什么区别？", "hint": "回流改变布局几何需重新计算，重绘只改外观，回流更昂贵。" },
+        { "question": "为什么 CSS 放头部、JS 放底部？", "hint": "CSS 早加载避免无样式闪烁，JS 阻塞解析放底部防卡渲染。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["网络", "HTTP", "高频"]
+    },
+    {
+      "title": "CDN 的工作原理是什么？有什么作用？",
+      "slug": "network-cdn-principle",
+      "answerBrief": "CDN 把内容缓存到全国各地的边缘节点，用户请求时通过 DNS 调度就近访问最近的节点，减少回源、降低延迟、分担源站压力。主要用于加速静态资源分发、抗流量峰值和提升访问体验。",
+      "answerDetail": "## 工作原理\n\n1. 用户请求域名，CDN 的智能 DNS（GSLB）根据用户地理位置和节点负载，返回最优边缘节点的 IP。\n2. 用户访问该边缘节点：\n   - **命中缓存**：直接返回缓存内容。\n   - **未命中**：节点回源站拉取内容，缓存后返回。\n\n```\n用户 → 智能 DNS 调度 → 就近边缘节点 →（未命中）回源站\n```\n\n## 核心作用\n\n| 作用 | 说明 |\n| --- | --- |\n| 降低延迟 | 就近访问，缩短物理距离 |\n| 减轻源站压力 | 边缘节点分担大量请求 |\n| 抗峰值 / 防攻击 | 流量分散，缓解突发和部分 DDoS |\n| 节省带宽 | 减少回源流量 |\n\n## 适用内容\n\n图片、视频、CSS/JS、静态页面等不常变化的资源最适合 CDN。动态内容可用动态加速或边缘计算优化。缓存更新通过设置 TTL 和主动刷新/预热实现。"
+      ,
+      "followUps": [
+        { "question": "CDN 如何保证缓存内容的更新？", "hint": "设置合理 TTL，配合主动刷新（purge）和预热（preload）。" },
+        { "question": "动态内容能用 CDN 加速吗？", "hint": "可用动态加速（路由优化）和边缘计算，纯缓存不适用。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "CDN", "高频"]
+    },
+    {
+      "title": "OSI 七层模型和 TCP/IP 四层模型分别是什么？",
+      "slug": "network-osi-tcp-ip-model",
+      "answerBrief": "OSI 是七层理论模型：物理、数据链路、网络、传输、会话、表示、应用；TCP/IP 是四层实用模型：网络接口、网际、传输、应用。后者把 OSI 上三层合为应用层、下两层合为网络接口层，是实际互联网的体系。",
+      "answerDetail": "## 两种模型对照\n\n| OSI 七层 | TCP/IP 四层 | 典型协议 |\n| --- | --- | --- |\n| 应用层 | 应用层 | HTTP、DNS、FTP |\n| 表示层 | 应用层 | TLS、JPEG |\n| 会话层 | 应用层 | RPC |\n| 传输层 | 传输层 | TCP、UDP |\n| 网络层 | 网际层 | IP、ICMP |\n| 数据链路层 | 网络接口层 | 以太网、ARP |\n| 物理层 | 网络接口层 | 网线、光纤 |\n\n## 各层职责\n\n- **应用层**：为应用提供网络服务接口（HTTP、DNS）。\n- **传输层**：端到端通信，TCP 可靠、UDP 高效。\n- **网络层**：寻址和路由，IP 负责把分组送到目标主机。\n- **数据链路层**：相邻节点间成帧、差错检测（MAC 寻址）。\n- **物理层**：比特流的物理传输。\n\n## 小结\n\nOSI 是教学分层标准，TCP/IP 是工程落地标准。记忆口诀「物链网传会表应」，理解数据自上而下封装、自下而上解封装即可。"
+      ,
+      "followUps": [
+        { "question": "数据在各层是如何封装的？", "hint": "自上而下逐层加头部：段→包→帧→比特，接收端逆向解封装。" },
+        { "question": "为什么 TCP/IP 模型实际上更常用？", "hint": "工程导向、层次精简、随互联网普及成为事实标准。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["网络", "高频"]
+    },
+    {
+      "title": "ARP 协议是做什么的？工作原理是什么？",
+      "slug": "network-arp-protocol",
+      "answerBrief": "ARP 用于在局域网内根据已知的 IP 地址解析出对应的 MAC 地址。主机广播 ARP 请求询问某 IP 的 MAC，目标主机单播回应自己的 MAC，结果缓存到 ARP 表供后续直接使用。",
+      "answerDetail": "## 为什么需要 ARP\n\nIP 负责逻辑寻址，但数据链路层实际传输靠 MAC 地址。同一局域网内发送数据帧前，必须知道目标 IP 对应的 MAC，ARP 就完成 IP → MAC 的映射。\n\n## 工作流程\n\n1. 主机 A 要给同网段的 IP B 发数据，先查本地 ARP 缓存。\n2. 缓存未命中，A **广播** ARP 请求：「谁是 IP B？请告诉我你的 MAC」。\n3. 只有 IP B 主机**单播**回应自己的 MAC。\n4. A 把映射写入 ARP 缓存（有老化时间），后续直接使用。\n\n```\nARP 请求：广播（目的 MAC 全 F）\nARP 响应：单播（点对点回复）\n```\n\n## 跨网段\n\n目标不在同一网段时，ARP 解析的是默认网关的 MAC，由网关负责后续转发。\n\n## 安全问题\n\nARP 无认证，攻击者可伪造响应进行 **ARP 欺骗**，把流量引向自己实现中间人攻击，可用静态 ARP 绑定或 ARP 防护设备缓解。"
+      ,
+      "followUps": [
+        { "question": "什么是 ARP 欺骗？怎么防范？", "hint": "伪造 ARP 响应冒充网关截流；用静态绑定、ARP 防火墙防护。" },
+        { "question": "跨网段通信时 ARP 解析的是谁的 MAC？", "hint": "解析默认网关的 MAC，由网关接力转发。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络"]
+    },
+    {
+      "title": "什么是 HTTP 缓存？强缓存和协商缓存有什么区别？",
+      "slug": "network-http-cache-strong-negotiation",
+      "answerBrief": "强缓存由 Cache-Control 或 Expires 控制，命中则不发请求直接用本地缓存；协商缓存通过 ETag/Last-Modified 带条件请求询问服务端，未变更返回 304 复用缓存。强缓存优先，失效后走协商缓存。",
+      "answerDetail": "## 强缓存\n\n命中时浏览器不发请求，直接用本地副本，状态显示 `200 (from disk/memory cache)`。\n\n| 字段 | 说明 |\n| --- | --- |\n| Cache-Control: max-age=3600 | 相对过期时间（优先级高） |\n| Expires | 绝对过期时间（HTTP/1.0，受时钟影响） |\n\n## 协商缓存\n\n强缓存过期后，浏览器带条件请求向服务端确认资源是否变化：\n\n| 请求头 | 响应头 | 说明 |\n| --- | --- | --- |\n| If-None-Match | ETag | 基于内容指纹，更精确 |\n| If-Modified-Since | Last-Modified | 基于修改时间，秒级精度 |\n\n未变更服务端返回 `304 Not Modified`，浏览器复用本地缓存；已变更返回 `200` 和新内容。\n\n## 整体流程\n\n```\n有缓存？→ 强缓存未过期 → 直接用（200 from cache）\n            └ 过期 → 协商缓存 → 304 复用 / 200 更新\n```\n\n## 小结\n\n强缓存「不问直接用」省请求，协商缓存「问一下再用」省传输，二者配合在性能和实时性间取得平衡。"
+      ,
+      "followUps": [
+        { "question": "Cache-Control 和 Expires 谁优先级更高？", "hint": "Cache-Control 优先，且用相对时间不受客户端时钟影响。" },
+        { "question": "ETag 比 Last-Modified 好在哪？", "hint": "基于内容指纹，能识别秒内多次修改和内容回退等情况。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "HTTP", "高频"]
+    },
+    {
+      "title": "对称的 GET 和 POST 哪个更安全？HTTPS 下抓包能看到什么？",
+      "slug": "network-get-post-https-security",
+      "answerBrief": "GET 和 POST 本质都不安全，参数都会明文出现在报文中，POST 只是不在 URL 里更隐蔽。HTTPS 下整个报文（含 URL 路径、头、体）都被 TLS 加密，抓包只能看到加密后的密文和域名，看不到具体内容。",
+      "answerDetail": "## GET 与 POST 的「安全」误区\n\n很多人以为 POST 比 GET 安全，其实在 **HTTP 明文**下两者都不安全：\n\n- GET 参数在 URL，会出现在浏览器历史、日志、Referer 中，更易泄露。\n- POST 参数在请求体，不在 URL，但抓包同样是明文可见。\n\n所以 POST 只是「不暴露在 URL」，并非加密。\n\n## HTTPS 下抓包能看到什么\n\n| 信息 | 是否可见 |\n| --- | --- |\n| 目标域名（SNI） | 可见 |\n| 目标 IP、端口 | 可见 |\n| URL 路径、查询参数 | 加密不可见 |\n| 请求/响应头与体 | 加密不可见 |\n\nTLS 在 TCP 之上加密了整个 HTTP 报文，中间人只能看到加密后的密文。除非用户信任了攻击者的根证书（如代理抓包），否则无法解密。\n\n## 结论\n\n真正的传输安全来自 HTTPS，而非 GET/POST 的选择。敏感数据必须走 HTTPS。"
+      ,
+      "followUps": [
+        { "question": "HTTPS 下为什么还能看到访问的域名？", "hint": "TLS 握手的 SNI 字段明文携带域名；ESNI/ECH 才能隐藏。" },
+        { "question": "GET 请求的参数会泄露在哪些地方？", "hint": "浏览器历史、服务器访问日志、Referer 头、代理缓存。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "HTTPS", "HTTP"]
+    },
+    {
+      "title": "IP 地址的分类和子网掩码是什么？什么是私有 IP？",
+      "slug": "network-ip-address-subnet",
+      "answerBrief": "IPv4 地址分网络号和主机号，子网掩码用于区分二者并划分子网。传统分 A/B/C/D/E 类，现多用 CIDR 无类划分。私有 IP（如 10.x、172.16~31.x、192.168.x）只在内网使用，通过 NAT 转换访问公网。",
+      "answerDetail": "## IP 地址结构\n\nIPv4 是 32 位地址，分为**网络号**和**主机号**两部分，子网掩码（如 255.255.255.0）中连续的 1 标识网络号、0 标识主机号。\n\n## 传统分类\n\n| 类别 | 范围 | 用途 |\n| --- | --- | --- |\n| A | 1~126 | 超大型网络 |\n| B | 128~191 | 中型网络 |\n| C | 192~223 | 小型网络 |\n| D | 224~239 | 组播 |\n| E | 240~255 | 保留 |\n\n## CIDR\n\n现代用无类域间路由（CIDR），如 `192.168.1.0/24` 表示前 24 位是网络号，更灵活地划分子网，提高地址利用率。\n\n## 私有 IP\n\n以下网段仅供内网使用，不在公网路由：\n\n```\n10.0.0.0/8\n172.16.0.0/12\n192.168.0.0/16\n```\n\n内网主机通过 **NAT**（网络地址转换）把私有 IP 映射为公网 IP 访问互联网，既节省公网地址又提供一定隔离。"
+      ,
+      "followUps": [
+        { "question": "NAT 是怎么工作的？解决了什么问题？", "hint": "私网与公网间转换地址端口，缓解 IPv4 地址枯竭并隔离内网。" },
+        { "question": "IPv6 相比 IPv4 有哪些改进？", "hint": "128 位地址空间巨大、简化头部、内置 IPSec、无需 NAT。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络"]
+    },
+    {
+      "title": "什么是 XSS 和 CSRF 攻击？如何防御？",
+      "slug": "network-xss-csrf",
+      "answerBrief": "XSS 是注入恶意脚本在受害者浏览器执行，防御靠输入过滤、输出转义、CSP 和 HttpOnly Cookie；CSRF 是诱导用户在已登录状态下发起非预期请求，防御靠 CSRF Token、SameSite Cookie 和校验来源。",
+      "answerDetail": "## XSS（跨站脚本攻击）\n\n攻击者把恶意脚本注入页面，在其他用户浏览器中执行，窃取 Cookie、伪造操作。\n\n| 类型 | 说明 |\n| --- | --- |\n| 存储型 | 脚本存入数据库，所有访问者中招 |\n| 反射型 | 脚本在 URL 参数中，诱导点击触发 |\n| DOM 型 | 前端 JS 处理不当导致 |\n\n**防御**：输入校验、输出 HTML 转义、设置 CSP 内容安全策略、Cookie 加 HttpOnly 防脚本读取。\n\n## CSRF（跨站请求伪造）\n\n用户已登录 A 网站，访问恶意网站 B，B 偷偷向 A 发请求，浏览器自动带上 A 的 Cookie，从而以用户身份执行操作。\n\n**防御**：\n\n- **CSRF Token**：表单/请求携带服务端随机 token，攻击者无法获取。\n- **SameSite Cookie**：限制跨站请求携带 Cookie。\n- **校验 Referer/Origin**：确认请求来源合法。\n\n## 对比\n\n```\nXSS：利用网站对用户输入的信任（注入脚本）\nCSRF：利用网站对用户浏览器的信任（盗用身份）\n```"
+      ,
+      "followUps": [
+        { "question": "SameSite 的 Strict、Lax、None 有什么区别？", "hint": "Strict 完全禁跨站带 Cookie，Lax 放行部分导航，None 需配 Secure。" },
+        { "question": "为什么 HttpOnly Cookie 能防 XSS 窃取？", "hint": "禁止 JS 通过 document.cookie 读取，脚本拿不到会话凭证。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["网络", "HTTPS", "高频"]
+    },
+    {
+      "title": "TCP 的 SYN Flood 攻击是什么？如何防御？",
+      "slug": "network-syn-flood-defense",
+      "answerBrief": "攻击者伪造大量源 IP 发送 SYN 但不回最后的 ACK，使服务端半连接队列被占满，无法响应正常握手。防御手段包括 SYN Cookie、缩短 SYN_RCVD 超时、增大半连接队列、首包丢弃和防火墙清洗。",
+      "answerDetail": "## 攻击原理\n\n三次握手中，服务端收到 SYN 后会分配资源并把连接放入**半连接队列**，等待客户端的 ACK。攻击者伪造大量源 IP 发 SYN 却不回 ACK，半连接队列被迅速占满，正常用户的握手被拒绝。\n\n```\n攻击者 ──大量伪造 SYN──▶ 服务端（半连接队列爆满）\n           （不回 ACK，连接一直挂起）\n```\n\n## 防御手段\n\n| 手段 | 说明 |\n| --- | --- |\n| SYN Cookie | 不立即分配资源，把连接信息编码进序列号，收到合法 ACK 再建连 |\n| 增大半连接队列 | 调大 tcp_max_syn_backlog |\n| 缩短超时/减少重试 | 降低 tcp_synack_retries 让无效连接快速释放 |\n| 首包丢弃 | 真实客户端会重传，攻击伪造包通常不重传 |\n| 防火墙/清洗 | 流量清洗设备识别异常并拦截 |\n\n## SYN Cookie 核心\n\n```bash\nnet.ipv4.tcp_syncookies = 1\n```\n\n开启后，半连接队列满时服务端不再保存状态，而是用算法把信息塞进 SYN+ACK 的序列号，收到对应 ACK 时还原校验，从根本上消除了队列被占满的问题。"
+      ,
+      "followUps": [
+        { "question": "SYN Cookie 有什么副作用或局限？", "hint": "无法保存 TCP 选项（如窗口缩放），仅在队列满时启用更稳妥。" },
+        { "question": "半连接队列和全连接队列有什么区别？", "hint": "半连接存 SYN_RCVD，全连接存已完成握手待 accept 的连接。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["网络", "TCP"]
+    },
+    {
+      "title": "短轮询、长轮询和 SSE 有什么区别？分别适用什么场景？",
+      "slug": "network-polling-long-polling-sse",
+      "answerBrief": "短轮询定时反复请求，实时性差且浪费资源；长轮询请求后服务端挂起到有数据才返回，实时性较好；SSE 基于 HTTP 建立单向长连接由服务端持续推送。需要双向实时则用 WebSocket。",
+      "answerDetail": "## 三种方案对比\n\n| 方案 | 原理 | 实时性 | 开销 |\n| --- | --- | --- | --- |\n| 短轮询 | 客户端固定间隔反复请求 | 差（取决于间隔） | 大量无效请求 |\n| 长轮询 | 请求后服务端挂起，有数据才响应，客户端立即再发 | 较好 | 比短轮询省 |\n| SSE | 一条 HTTP 长连接，服务端持续推送事件流 | 好 | 单连接低开销 |\n\n## SSE 特点\n\nSSE（Server-Sent Events）基于 HTTP，使用 `text/event-stream`，是**单向**的服务端到客户端推送，浏览器原生支持自动重连：\n\n```\nContent-Type: text/event-stream\n\ndata: 第一条消息\n\ndata: 第二条消息\n```\n\n## 如何选择\n\n- 数据更新慢、要求不高：短轮询足够简单。\n- 需要较实时的服务端推送、单向：长轮询或 SSE。\n- 需要**双向**实时通信（聊天、协同）：用 WebSocket。\n\nSSE 比 WebSocket 更轻量、复用 HTTP 基础设施，但只能单向；二者按需求互补。"
+      ,
+      "followUps": [
+        { "question": "SSE 和 WebSocket 各自的优缺点？", "hint": "SSE 单向、基于 HTTP 自动重连简单；WebSocket 双向更通用但更重。" },
+        { "question": "长轮询相比短轮询为什么更省资源？", "hint": "无数据时连接挂起不返回，减少大量空响应请求。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "HTTP", "WebSocket"]
+    },
+    {
+      "title": "TCP 的 Keepalive 和 HTTP 的 Keep-Alive 有什么区别？",
+      "slug": "network-tcp-keepalive-vs-http-keep-alive",
+      "answerBrief": "TCP Keepalive 是传输层机制，长时间空闲后发探测包检测连接是否存活、清理死连接；HTTP Keep-Alive 是应用层的连接复用，让多个 HTTP 请求共用一条 TCP 连接。二者名字相似但层次和目的完全不同。",
+      "answerDetail": "## 两者对比\n\n| 维度 | TCP Keepalive | HTTP Keep-Alive |\n| --- | --- | --- |\n| 所在层 | 传输层 | 应用层 |\n| 目的 | 检测连接是否存活、回收死连接 | 复用连接，减少握手开销 |\n| 触发 | 连接空闲超过阈值自动发探测包 | 通过 Connection 头协商 |\n| 配置 | 操作系统内核参数 | HTTP 头部字段 |\n\n## TCP Keepalive\n\n当连接长时间无数据传输，TCP 按内核参数定期发送探测报文，若对端无响应则判定连接已死并关闭，避免半开连接长期占用资源。\n\n```bash\nnet.ipv4.tcp_keepalive_time = 7200   # 空闲多久开始探测（秒）\nnet.ipv4.tcp_keepalive_intvl = 75    # 探测间隔\nnet.ipv4.tcp_keepalive_probes = 9    # 探测次数\n```\n\n## HTTP Keep-Alive\n\n通过 `Connection: keep-alive` 让一条 TCP 连接上串行处理多个 HTTP 请求，避免每个请求都重新握手。\n\n## 小结\n\n一个解决「连接还活着吗」，一个解决「连接能不能重复用」，层次和职责完全不同，只是名字撞车。"
+      ,
+      "followUps": [
+        { "question": "为什么需要 TCP Keepalive 检测半开连接？", "hint": "对端异常掉线不会发 FIN，本端无从知晓，探测包可发现。" },
+        { "question": "应用层心跳和 TCP Keepalive 如何取舍？", "hint": "应用心跳更灵活及时、能携带业务信息，长连接服务常自己实现。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["网络", "TCP", "HTTP"]
+    },
+    {
+      "title": "HTTP 重定向有哪些状态码？301、302、307、308 有什么区别？",
+      "slug": "network-http-redirect-codes",
+      "answerBrief": "301 永久重定向会被缓存、302 临时重定向不缓存，但二者历史上可能改变请求方法；307、308 是其严格版本，强制保持原方法和请求体不变，307 临时、308 永久，适合 POST 等场景。",
+      "answerDetail": "## 重定向状态码对比\n\n| 码 | 含义 | 是否永久 | 是否保持方法 |\n| --- | --- | --- | --- |\n| 301 | 永久移动 | 是 | 历史上常被改写为 GET |\n| 302 | 临时移动 | 否 | 历史上常被改写为 GET |\n| 307 | 临时重定向 | 否 | 严格保持原方法和请求体 |\n| 308 | 永久重定向 | 是 | 严格保持原方法和请求体 |\n\n## 关键差异\n\n- **301 vs 308**：都是永久。但浏览器对 301 在 POST 时可能把请求转成 GET，308 则保证仍用 POST，语义更明确。\n- **302 vs 307**：都是临时。307 严格保持方法，避免 POST 被意外变成 GET。\n\n## SEO 与缓存\n\n- 301/308 永久重定向会被浏览器和搜索引擎缓存，并把权重传递到新地址。\n- 302/307 临时重定向不缓存，原地址仍是主资源。\n\n## 实践建议\n\n域名永久迁移用 301/308，临时活动跳转用 302/307；涉及 POST 表单提交的跳转优先用 307/308 以免丢失方法和请求体。"
+      ,
+      "followUps": [
+        { "question": "用 301 做永久迁移有什么需要注意的？", "hint": "会被长期缓存，配置错误难回退，迁移前务必确认目标稳定。" },
+        { "question": "重定向次数过多会怎样？", "hint": "形成循环时浏览器报 ERR_TOO_MANY_REDIRECTS 终止请求。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["网络", "HTTP"]
+    },
+    {
+      "title": "Socket 是什么？基于 TCP 的 Socket 通信流程是怎样的？",
+      "slug": "network-socket-communication-flow",
+      "answerBrief": "Socket 是对传输层 TCP/UDP 的编程抽象，是应用进行网络通信的接口。TCP 通信中服务端依次 socket、bind、listen、accept，客户端 socket、connect，连接建立后双方 read/write 收发数据，最后 close 关闭。",
+      "answerDetail": "## Socket 是什么\n\nSocket（套接字）是操作系统提供的网络编程接口，封装了底层 TCP/UDP 协议细节，由「IP + 端口」唯一标识一个通信端点，应用通过它收发数据。\n\n## TCP Socket 通信流程\n\n```\n服务端                         客户端\nsocket()                      socket()\nbind()\nlisten()\naccept()  ◀── 三次握手 ──▶  connect()\nread()/write() ◀── 数据 ──▶ write()/read()\nclose()       ◀── 四次挥手 ──▶ close()\n```\n\n## 关键调用说明\n\n| 调用 | 作用 |\n| --- | --- |\n| socket | 创建套接字 |\n| bind | 绑定 IP 和端口（服务端） |\n| listen | 进入监听，设置全连接队列 |\n| accept | 取出已完成握手的连接 |\n| connect | 客户端发起连接（触发三次握手） |\n| read/write | 收发数据 |\n| close | 关闭连接（触发四次挥手） |\n\n## I/O 模型\n\n高并发下 accept/read 若阻塞会限制吞吐，因此演化出 I/O 多路复用（select/poll/epoll）配合非阻塞 socket，一个线程管理大量连接，是 Redis、Nginx 等高性能服务的基础。"
+      ,
+      "followUps": [
+        { "question": "accept 取出的连接来自半连接还是全连接队列？", "hint": "来自全连接队列，存放已完成三次握手等待处理的连接。" },
+        { "question": "select、poll、epoll 有什么区别？", "hint": "epoll 用事件回调避免轮询全部 fd，大并发下性能远优于前两者。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["网络", "TCP", "高频"]
+    }
+  ]
+}

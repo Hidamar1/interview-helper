@@ -1,0 +1,473 @@
+{
+  "bank": {
+    "name": "Python",
+    "slug": "python",
+    "description": "语言特性 · 数据结构 · 异步",
+    "icon": "🐍",
+    "category": "Python",
+    "sortOrder": 3
+  },
+  "questions": [
+    {
+      "title": "Python 的 GIL 是什么？对多线程有什么影响？",
+      "slug": "python-gil",
+      "answerBrief": "GIL 是 CPython 的全局解释器锁，同一时刻只允许一个线程执行字节码。CPU 密集型多线程无法真正并行，IO 密集型基本不受影响；要并行计算用多进程或 C 扩展绕过。",
+      "answerDetail": "## 什么是 GIL\n\nGIL（Global Interpreter Lock）是 CPython 解释器中的一把互斥锁，保证同一时刻只有一个线程在执行 Python 字节码。它的存在主要是为了简化 CPython 内存管理——尤其是引用计数的线程安全。\n\n## 对多线程的影响\n\n| 场景 | 是否受 GIL 限制 | 原因 |\n| --- | --- | --- |\n| CPU 密集型 | 受限，无法并行 | 线程争抢 GIL，串行执行 |\n| IO 密集型 | 基本不受限 | 阻塞 IO 时会释放 GIL |\n\n```python\nimport threading\n\n# CPU 密集：多线程不会加速，甚至更慢\ndef count(n):\n    while n > 0:\n        n -= 1\n\nthreads = [threading.Thread(target=count, args=(10**7,)) for _ in range(4)]\nfor t in threads: t.start()\nfor t in threads: t.join()\n```\n\n## 如何绕过\n\n- CPU 密集用 `multiprocessing`，每个进程有独立解释器和 GIL\n- 用 NumPy 等释放 GIL 的 C 扩展\n- Python 3.13 引入实验性 free-threading（无 GIL）构建",
+      "followUps": [
+        { "question": "为什么 CPython 需要 GIL？", "hint": "从引用计数的线程安全成本和实现复杂度角度思考。" },
+        { "question": "如何在多线程下做 CPU 密集型并行计算？", "hint": "multiprocessing、释放 GIL 的 C 扩展、3.13 free-threading。" },
+        { "question": "IO 密集型为什么多线程仍然有效？", "hint": "阻塞系统调用期间会释放 GIL，让其他线程运行。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "并发", "高频"]
+    },
+    {
+      "title": "Python 中可变对象和不可变对象有什么区别？",
+      "slug": "python-mutable-immutable",
+      "answerBrief": "不可变对象创建后内容不能改变，如 int、str、tuple；可变对象内容可原地修改，如 list、dict、set。区别影响赋值、函数传参和作为字典 key 的能力。",
+      "answerDetail": "## 定义\n\n- **不可变（immutable）**：`int`、`float`、`str`、`tuple`、`frozenset`、`bytes`。修改会生成新对象。\n- **可变（mutable）**：`list`、`dict`、`set`、`bytearray`。可在原地址上修改内容。\n\n## 验证\n\n```python\ns = \"abc\"\nprint(id(s))\ns += \"d\"      # 生成新字符串\nprint(id(s))  # id 改变\n\nlst = [1, 2]\nprint(id(lst))\nlst.append(3) # 原地修改\nprint(id(lst))# id 不变\n```\n\n## 影响\n\n1. **函数传参**：Python 是「按对象引用传递」。传可变对象时函数内修改会影响外部。\n2. **字典 key**：只有可哈希（通常即不可变）对象能做 key，`list` 不行，`tuple` 可以。\n3. **默认参数陷阱**：用可变对象做默认参数会在多次调用间共享状态。\n\n## 注意\n\n`tuple` 是不可变的，但若元素是可变对象，其内容仍可改变：\n\n```python\nt = ([1], 2)\nt[0].append(9)  # 合法，t 变成 ([1, 9], 2)\n```",
+      "followUps": [
+        { "question": "为什么 list 不能做字典的 key？", "hint": "从可哈希性 __hash__ 和内容可变导致哈希不稳定的角度回答。" },
+        { "question": "元组一定不可变吗？", "hint": "考虑元组内部包含可变对象的情况。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Python", "语言特性", "高频"]
+    },
+    {
+      "title": "深拷贝和浅拷贝有什么区别？如何实现？",
+      "slug": "python-deep-shallow-copy",
+      "answerBrief": "浅拷贝只复制最外层容器，内部子对象仍是引用共享；深拷贝递归复制所有层级，完全独立。浅拷贝用 copy.copy 或切片，深拷贝用 copy.deepcopy。",
+      "answerDetail": "## 区别\n\n- **浅拷贝**：新建外层容器，但内部元素是原对象的引用。\n- **深拷贝**：递归复制每一层，新旧对象完全独立。\n\n## 实现方式\n\n```python\nimport copy\n\noriginal = [[1, 2], [3, 4]]\n\nshallow = copy.copy(original)      # 或 original[:]、list(original)\ndeep = copy.deepcopy(original)\n\noriginal[0].append(99)\nprint(shallow)  # [[1, 2, 99], [3, 4]]  受影响\nprint(deep)     # [[1, 2], [3, 4]]      不受影响\n```\n\n## 常见浅拷贝写法\n\n- 切片 `lst[:]`\n- 构造函数 `list(lst)`、`dict(d)`\n- `copy.copy()`\n\n## 深拷贝注意点\n\n1. `deepcopy` 通过 memo 字典处理**循环引用**，不会无限递归。\n2. 可定义 `__deepcopy__` / `__copy__` 自定义复制行为。\n3. 深拷贝开销大，大对象慎用。",
+      "followUps": [
+        { "question": "deepcopy 如何处理循环引用？", "hint": "内部维护 memo 字典记录已复制对象。" },
+        { "question": "如何自定义类的拷贝行为？", "hint": "实现 __copy__ 和 __deepcopy__ 魔法方法。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Python", "语言特性", "高频"]
+    },
+    {
+      "title": "Python 装饰器的原理是什么？如何编写带参数的装饰器？",
+      "slug": "python-decorator",
+      "answerBrief": "装饰器是接收函数返回新函数的可调用对象，本质是语法糖 func = decorator(func)，用于在不改源码的前提下增强功能。带参数的装饰器需要再套一层闭包。",
+      "answerDetail": "## 原理\n\n`@decorator` 等价于 `func = decorator(func)`。装饰器接收被装饰函数，返回一个包装函数。\n\n```python\nimport functools\n\ndef log(func):\n    @functools.wraps(func)  # 保留原函数元信息\n    def wrapper(*args, **kwargs):\n        print(f\"调用 {func.__name__}\")\n        return func(*args, **kwargs)\n    return wrapper\n\n@log\ndef add(a, b):\n    return a + b\n```\n\n## 带参数的装饰器\n\n再包一层，把参数闭包进去：\n\n```python\ndef repeat(n):\n    def decorator(func):\n        @functools.wraps(func)\n        def wrapper(*args, **kwargs):\n            for _ in range(n):\n                result = func(*args, **kwargs)\n            return result\n        return wrapper\n    return decorator\n\n@repeat(3)\ndef greet():\n    print(\"hi\")\n```\n\n## 要点\n\n- `functools.wraps` 保留 `__name__`、`__doc__` 等元信息。\n- 类也可作装饰器（实现 `__call__`）。\n- 装饰器自下而上叠加执行。",
+      "followUps": [
+        { "question": "functools.wraps 的作用是什么？", "hint": "复制原函数的元信息，避免包装后丢失 __name__/__doc__。" },
+        { "question": "多个装饰器叠加时执行顺序如何？", "hint": "装饰阶段自下而上包裹，调用阶段自上而下进入。" },
+        { "question": "如何用类实现装饰器？", "hint": "在类中实现 __init__ 接收函数、__call__ 执行包装逻辑。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "语言特性", "高频"]
+    },
+    {
+      "title": "生成器和迭代器有什么区别？yield 的作用是什么？",
+      "slug": "python-generator-iterator",
+      "answerBrief": "迭代器是实现了 __iter__ 和 __next__ 的对象；生成器是用 yield 简化创建迭代器的特殊函数。yield 让函数暂停并返回值，下次从暂停处恢复，实现惰性求值省内存。",
+      "answerDetail": "## 迭代器\n\n实现了 `__iter__`（返回自身）和 `__next__`（返回下一个值，耗尽时抛 `StopIteration`）的对象。\n\n## 生成器\n\n用 `yield` 的函数或生成器表达式，是迭代器的语法糖，由解释器自动维护状态。\n\n```python\ndef gen():\n    print(\"start\")\n    yield 1\n    yield 2\n\ng = gen()\nnext(g)  # 打印 start，返回 1\nnext(g)  # 返回 2\nnext(g)  # 抛 StopIteration\n```\n\n## yield 的作用\n\n- 暂停函数执行并返回一个值，保留局部状态\n- 下次 `next()` 从暂停处继续\n- 实现**惰性求值**，处理大数据或无限序列不占内存\n\n```python\n# 生成器表达式，逐个产出，不一次性占内存\nsquares = (x * x for x in range(10**6))\n```\n\n## 对比\n\n| 维度 | 迭代器 | 生成器 |\n| --- | --- | --- |\n| 创建 | 手写两个魔法方法 | yield/表达式 |\n| 状态维护 | 手动 | 自动 |\n| 内存 | 视实现 | 惰性，省内存 |",
+      "followUps": [
+        { "question": "生成器的 send() 方法有什么用？", "hint": "向生成器内部 yield 表达式传值，实现协程式双向通信。" },
+        { "question": "什么是 yield from？", "hint": "委托给子生成器，可透传值并简化嵌套生成器代码。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "语言特性", "高频"]
+    },
+    {
+      "title": "上下文管理器和 with 语句的工作原理是什么？",
+      "slug": "python-context-manager",
+      "answerBrief": "上下文管理器实现 __enter__ 和 __exit__，with 进入时调用 enter、退出时无论是否异常都调用 exit，确保资源（文件、锁、连接）被正确释放。",
+      "answerDetail": "## 协议\n\n上下文管理器需实现两个方法：\n\n- `__enter__`：进入 with 块时调用，返回值绑定到 `as` 后的变量\n- `__exit__(exc_type, exc_val, exc_tb)`：退出时调用，可处理异常\n\n```python\nclass FileManager:\n    def __init__(self, path):\n        self.path = path\n    def __enter__(self):\n        self.f = open(self.path)\n        return self.f\n    def __exit__(self, exc_type, exc_val, exc_tb):\n        self.f.close()\n        return False  # 返回 True 会吞掉异常\n\nwith FileManager(\"a.txt\") as f:\n    data = f.read()\n```\n\n## contextlib 简化\n\n用装饰器把生成器变成上下文管理器：\n\n```python\nfrom contextlib import contextmanager\n\n@contextmanager\ndef managed():\n    print(\"setup\")\n    try:\n        yield \"resource\"\n    finally:\n        print(\"cleanup\")\n```\n\n## 要点\n\n- `__exit__` 即使发生异常也会执行，等价于 try/finally。\n- `__exit__` 返回 `True` 表示异常已处理，会被吞掉。\n- 常用于文件、锁、数据库连接、计时等场景。",
+      "followUps": [
+        { "question": "__exit__ 返回 True 和 False 有什么区别？", "hint": "返回 True 表示异常被处理并吞掉，False 则向上传播。" },
+        { "question": "contextlib.contextmanager 如何工作？", "hint": "把生成器 yield 之前当 enter、之后当 exit，try/finally 保证清理。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "语言特性"]
+    },
+    {
+      "title": "*args 和 **kwargs 是什么？如何使用？",
+      "slug": "python-args-kwargs",
+      "answerBrief": "*args 收集任意多的位置参数为元组，**kwargs 收集任意多的关键字参数为字典。用于编写参数数量不定的函数，调用时也可用 * 和 ** 解包序列与字典。",
+      "answerDetail": "## 定义时收集参数\n\n```python\ndef func(a, *args, **kwargs):\n    print(a)       # 第一个位置参数\n    print(args)    # 元组：剩余位置参数\n    print(kwargs)  # 字典：剩余关键字参数\n\nfunc(1, 2, 3, x=4, y=5)\n# 1\n# (2, 3)\n# {'x': 4, 'y': 5}\n```\n\n## 调用时解包\n\n```python\nnums = [1, 2, 3]\nprint(*nums)            # 等价 print(1, 2, 3)\n\nd = {\"sep\": \"-\"}\nprint(1, 2, **d)        # 等价 print(1, 2, sep='-')\n```\n\n## 参数顺序规则\n\n定义顺序必须是：位置参数 → `*args` → 仅关键字参数 → `**kwargs`。\n\n```python\ndef f(a, b, *args, c, **kwargs): ...\n# c 是仅关键字参数，必须用 c= 传\n```\n\n## 典型用途\n\n- 编写通用包装器 / 装饰器透传参数\n- 转发参数给父类或其他函数\n- 实现灵活的 API 接口",
+      "followUps": [
+        { "question": "如何强制某些参数只能用关键字传递？", "hint": "在参数列表中放一个裸 * 或放在 *args 之后。" },
+        { "question": "装饰器里为什么常写 *args, **kwargs？", "hint": "为了透传任意签名的被装饰函数的参数。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Python", "语言特性", "高频"]
+    },
+    {
+      "title": "Python 字典的底层实现是怎样的？时间复杂度如何？",
+      "slug": "python-dict-internals",
+      "answerBrief": "dict 基于开放寻址的哈希表实现，平均增删查改 O(1)，最坏 O(n)。Python 3.7+ 保证插入有序，采用紧凑布局，哈希冲突用探测序列解决。",
+      "answerDetail": "## 底层结构\n\nCPython 的 `dict` 是**哈希表**，采用**开放寻址**（open addressing）而非链表法解决冲突。\n\n## 紧凑字典（3.6+）\n\n3.6 起采用紧凑布局：键值实际存在一个连续的 `entries` 数组里，另有一个 `indices` 索引数组指向它。带来两个好处：\n\n- 节省约 20%~25% 内存\n- 保持**插入顺序**（3.7 起成为语言规范）\n\n## 复杂度\n\n| 操作 | 平均 | 最坏 |\n| --- | --- | --- |\n| 查找 d[k] | O(1) | O(n) |\n| 插入 | O(1) | O(n) |\n| 删除 | O(1) | O(n) |\n\n最坏情况发生在大量哈希冲突时。\n\n## 哈希冲突处理\n\n冲突时按伪随机探测序列寻找下一个空槽。负载因子超过 2/3 会扩容并 rehash。\n\n```python\n# key 必须可哈希\nd = {(1, 2): \"a\"}   # tuple 可以\n# d = {[1]: \"a\"}    # TypeError: unhashable\n```",
+      "followUps": [
+        { "question": "为什么字典的 key 必须可哈希？", "hint": "哈希表通过 hash 值定位槽位，key 还须 __eq__ 稳定。" },
+        { "question": "Python 3.7 之前字典是无序的吗？", "hint": "3.6 是实现细节有序，3.7 才写入语言规范。" },
+        { "question": "字典扩容会发生什么？", "hint": "负载因子超阈值时分配更大表并 rehash 所有元素。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Python", "数据结构", "高频"]
+    },
+    {
+      "title": "list 和 tuple 有什么区别？各自的底层实现如何？",
+      "slug": "python-list-tuple",
+      "answerBrief": "list 可变、tuple 不可变。list 是动态数组会预留扩容空间，tuple 长度固定更省内存、可哈希、可做字典 key。元素访问都是 O(1)，list 尾部增删摊还 O(1)。",
+      "answerDetail": "## 核心区别\n\n| 维度 | list | tuple |\n| --- | --- | --- |\n| 可变性 | 可变 | 不可变 |\n| 内存 | 有预留空间 | 紧凑 |\n| 可哈希 | 否 | 是（元素均可哈希时） |\n| 用途 | 同质动态集合 | 异质固定记录 |\n\n## 底层实现\n\n- `list` 是**动态数组**，存的是指向对象的指针数组。扩容时按约 1.125 倍超额分配，避免每次 append 都搬迁。\n- `tuple` 长度固定，分配一次，无需预留，内存更省。\n\n## 复杂度\n\n```python\nlst[0]           # O(1) 随机访问\nlst.append(x)    # 摊还 O(1)\nlst.insert(0, x) # O(n) 需搬移\nx in lst         # O(n) 线性扫描\n```\n\n## 选择建议\n\n- 元素会增删改 → list\n- 固定记录、作字典 key、需要哈希 → tuple\n- 字段固定且需可读性 → namedtuple / dataclass",
+      "followUps": [
+        { "question": "为什么 list 的 append 是摊还 O(1)？", "hint": "超额分配让多数 append 不触发扩容搬迁。" },
+        { "question": "什么时候该用 tuple 而不是 list？", "hint": "数据固定、需要可哈希或作字典 key 时。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "数据结构", "高频"]
+    },
+    {
+      "title": "什么是字符串驻留（string interning）？",
+      "slug": "python-string-interning",
+      "answerBrief": "字符串驻留是 Python 缓存复用某些字符串对象的机制，相同内容共享同一对象以省内存、加速比较。短的、像标识符的字符串会自动驻留，可用 sys.intern 手动驻留。",
+      "answerDetail": "## 是什么\n\n驻留指解释器把某些字符串放入内部池，相同内容只存一份。好处是节省内存、`is` 比较与字典查找更快。\n\n## 自动驻留规则（CPython 实现细节）\n\n- 编译期出现的字符串字面量\n- 仅含字母数字下划线、看起来像标识符的短字符串\n- 长度为 0 或 1 的字符串\n\n```python\na = \"hello\"\nb = \"hello\"\nprint(a is b)        # True，驻留\n\nc = \"hello world!\"   # 含空格和符号\nd = \"hello world!\"\nprint(c is d)        # 可能 False\n```\n\n## 手动驻留\n\n```python\nimport sys\nx = sys.intern(\"some_long_dynamic_string\")\ny = sys.intern(\"some_long_dynamic_string\")\nprint(x is y)  # True\n```\n\n## 注意\n\n- 这是 CPython 实现细节，**不要依赖 `is` 比较字符串内容**，请用 `==`。\n- 类似机制还有小整数缓存（`-5` 到 `256`）。",
+      "followUps": [
+        { "question": "为什么不能用 is 比较字符串内容？", "hint": "驻留是实现细节，is 比身份而非内容，结果不可靠。" },
+        { "question": "小整数缓存是什么？", "hint": "CPython 预创建 -5 到 256 的整数对象供复用。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Python", "数据结构"]
+    },
+    {
+      "title": "Python 的 is 和 == 有什么区别？",
+      "slug": "python-is-vs-equals",
+      "answerBrief": "== 比较两个对象的值是否相等，调用 __eq__；is 比较是否是同一个对象（id 相同）。判断值用 ==，判断是否同一对象（尤其和 None 比较）用 is。",
+      "answerDetail": "## 区别\n\n- `==`：值相等，由 `__eq__` 决定。\n- `is`：身份相等，比较 `id()`，即是否为内存中同一对象。\n\n```python\na = [1, 2, 3]\nb = [1, 2, 3]\nprint(a == b)  # True，值相等\nprint(a is b)  # False，不同对象\n```\n\n## 与 None 比较\n\n判断是否为 None 必须用 `is`：\n\n```python\nif x is None:   # 推荐\n    ...\n```\n\n因为 `None` 是单例，`is` 更快且不会被自定义 `__eq__` 干扰。\n\n## 容易踩坑的缓存\n\n```python\na = 256\nb = 256\nprint(a is b)  # True，小整数缓存\n\nc = 257\nd = 257\nprint(c is d)  # 交互式下可能 False\n```\n\n## 小结\n\n- 比较值 → `==`\n- 比较单例（None/True/False）或确实需要判断同一对象 → `is`",
+      "followUps": [
+        { "question": "为什么和 None 比较推荐用 is？", "hint": "None 是单例，is 更快且不受重载 __eq__ 影响。" },
+        { "question": "a = 257; b = 257 时 a is b 一定为 False 吗？", "hint": "取决于是否在同一编译单元，涉及常量折叠与小整数缓存。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Python", "语言特性", "高频"]
+    },
+    {
+      "title": "Python 的可变默认参数陷阱是什么？如何避免？",
+      "slug": "python-mutable-default-arg",
+      "answerBrief": "默认参数只在函数定义时求值一次，若用可变对象（如 list）做默认值，多次调用会共享同一对象导致状态累积。应改用 None 做默认值，在函数体内创建新对象。",
+      "answerDetail": "## 陷阱\n\n默认参数的值在**函数定义时只计算一次**，之后所有调用共享它。\n\n```python\ndef append_to(item, target=[]):  # 危险\n    target.append(item)\n    return target\n\nprint(append_to(1))  # [1]\nprint(append_to(2))  # [1, 2]  意外累积！\n```\n\n第二次调用并未传 `target`，却带着上次的数据。\n\n## 正确写法\n\n用 `None` 作为哨兵，在函数体内新建：\n\n```python\ndef append_to(item, target=None):\n    if target is None:\n        target = []\n    target.append(item)\n    return target\n```\n\n## 原理\n\n函数对象的 `__defaults__` 保存默认值，它是定义时绑定的同一个 list 对象，多次调用复用。\n\n```python\nprint(append_to.__defaults__)\n```\n\n## 适用范围\n\n所有可变默认值（list、dict、set）都有此问题；不可变默认值（int、str、None、tuple）则安全。",
+      "followUps": [
+        { "question": "为什么默认参数只求值一次？", "hint": "默认值在函数定义时绑定到 __defaults__，而非每次调用。" },
+        { "question": "用 None 作哨兵之外还有别的写法吗？", "hint": "可用 sentinel 哨兵对象区分未传与显式传 None。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "常见陷阱", "高频"]
+    },
+    {
+      "title": "Python 的 __new__ 和 __init__ 有什么区别？",
+      "slug": "python-new-vs-init",
+      "answerBrief": "__new__ 是静态方法，负责创建并返回实例；__init__ 在实例创建后负责初始化，无返回值。创建对象时先调 __new__ 再调 __init__，单例和不可变类型常重写 __new__。",
+      "answerDetail": "## 职责区别\n\n- `__new__(cls, ...)`：真正**创建**实例，是静态方法，返回新对象。\n- `__init__(self, ...)`：**初始化**已创建的实例，无返回值（须返回 None）。\n\n## 调用顺序\n\n```python\nclass Demo:\n    def __new__(cls, *args, **kwargs):\n        print(\"new\")\n        return super().__new__(cls)\n    def __init__(self, x):\n        print(\"init\")\n        self.x = x\n\nDemo(1)\n# new\n# init\n```\n\n只有 `__new__` 返回了 `cls` 的实例，`__init__` 才会被调用。\n\n## 典型用途\n\n实现单例：\n\n```python\nclass Singleton:\n    _instance = None\n    def __new__(cls):\n        if cls._instance is None:\n            cls._instance = super().__new__(cls)\n        return cls._instance\n```\n\n## 注意\n\n- 继承不可变类型（如 `int`、`str`、`tuple`）做定制时必须用 `__new__`，因为 `__init__` 时对象已不可变。\n- `__new__` 忘记返回实例会导致 `__init__` 不执行。",
+      "followUps": [
+        { "question": "为什么继承不可变类型要重写 __new__？", "hint": "不可变对象的值在创建时确定，__init__ 阶段已无法修改。" },
+        { "question": "单例模式还有哪些实现方式？", "hint": "元类、装饰器、模块级单例、__new__ 缓存实例。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Python", "面向对象"]
+    },
+    {
+      "title": "Python 的 MRO（方法解析顺序）是什么？如何计算？",
+      "slug": "python-mro",
+      "answerBrief": "MRO 是多继承时查找方法的线性顺序，Python 用 C3 线性化算法计算，保证子类先于父类、继承声明顺序被尊重。可通过类的 __mro__ 或 mro() 查看。",
+      "answerDetail": "## 是什么\n\nMRO（Method Resolution Order）决定多继承时属性/方法沿继承链查找的顺序。Python 3 用 **C3 线性化**算法。\n\n## C3 的保证\n\n1. 子类一定排在父类前面\n2. 多个父类按声明顺序排列\n3. 单调性：父类的相对顺序在子类中保持\n\n## 经典菱形继承\n\n```python\nclass A: pass\nclass B(A): pass\nclass C(A): pass\nclass D(B, C): pass\n\nprint([c.__name__ for c in D.__mro__])\n# ['D', 'B', 'C', 'A', 'object']\n```\n\nA 只出现一次且在 B、C 之后。\n\n## super() 的协作\n\n`super()` 按 MRO 顺序调用下一个类的方法，配合 `**kwargs` 可实现协作式多继承：\n\n```python\nclass Base:\n    def __init__(self, **kw):\n        super().__init__()\n```\n\n## 查看 MRO\n\n- `Cls.__mro__`（元组）\n- `Cls.mro()`（列表）\n- `help(Cls)`",
+      "followUps": [
+        { "question": "super() 调用的是父类方法吗？", "hint": "实际是 MRO 中当前类的下一个类，不一定是直接父类。" },
+        { "question": "什么情况下 C3 算法会报错？", "hint": "继承顺序产生不一致、无法线性化时抛 TypeError。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Python", "面向对象", "高频"]
+    },
+    {
+      "title": "Python 的 @property 装饰器有什么用？",
+      "slug": "python-property",
+      "answerBrief": "@property 把方法变成属性访问，可在取值/赋值时插入逻辑（校验、计算、只读），对外保持属性式接口而无需暴露 getter/setter 方法，是描述符的便捷封装。",
+      "answerDetail": "## 作用\n\n`@property` 让方法以属性方式被访问，便于在读写时加入校验或计算逻辑，同时保持简洁的属性接口。\n\n```python\nclass Circle:\n    def __init__(self, r):\n        self._r = r\n\n    @property\n    def radius(self):\n        return self._r\n\n    @radius.setter\n    def radius(self, value):\n        if value < 0:\n            raise ValueError(\"半径不能为负\")\n        self._r = value\n\n    @property\n    def area(self):          # 只读计算属性\n        return 3.14159 * self._r ** 2\n\nc = Circle(2)\nc.radius = 3      # 触发 setter 校验\nprint(c.area)     # 计算属性，无 setter 即只读\n```\n\n## 优点\n\n- 对外接口仍是属性 `c.radius`，无需 `get_radius()`\n- 可后期给属性加逻辑而不破坏调用方代码\n- 实现只读、惰性计算、数据校验\n\n## 本质\n\n`property` 是一个**描述符**，实现了 `__get__`、`__set__`、`__delete__`。可用 `@x.setter`、`@x.deleter` 补全。",
+      "followUps": [
+        { "question": "property 的底层是什么机制？", "hint": "它是实现了 __get__/__set__ 的数据描述符。" },
+        { "question": "如何实现一个只读属性？", "hint": "只定义 @property 的 getter，不定义 setter。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "面向对象", "高频"]
+    },
+    {
+      "title": "什么是描述符（descriptor）？数据描述符和非数据描述符有何区别？",
+      "slug": "python-descriptor",
+      "answerBrief": "描述符是实现了 __get__/__set__/__delete__ 的类，控制属性访问。同时有 __get__ 和 __set__/__delete__ 的是数据描述符，优先级高于实例字典；只有 __get__ 的是非数据描述符。",
+      "answerDetail": "## 定义\n\n描述符是定义了 `__get__`、`__set__` 或 `__delete__` 之一的类，作为另一个类的属性时，控制该属性的访问行为。`property`、`classmethod`、`staticmethod` 都是描述符。\n\n## 两种描述符\n\n| 类型 | 实现方法 | 优先级 |\n| --- | --- | --- |\n| 数据描述符 | __get__ + __set__/__delete__ | 高于实例 __dict__ |\n| 非数据描述符 | 仅 __get__ | 低于实例 __dict__ |\n\n## 属性查找优先级\n\n数据描述符 > 实例字典 > 非数据描述符 > 类属性。\n\n```python\nclass Positive:\n    def __set_name__(self, owner, name):\n        self.name = name\n    def __get__(self, obj, objtype=None):\n        return obj.__dict__[self.name]\n    def __set__(self, obj, value):\n        if value <= 0:\n            raise ValueError(\"必须为正\")\n        obj.__dict__[self.name] = value\n\nclass Account:\n    balance = Positive()\n\na = Account()\na.balance = 100   # 走 __set__ 校验\n```\n\n## 用途\n\n- 字段校验、类型检查\n- ORM 字段映射\n- 惰性属性、缓存",
+      "followUps": [
+        { "question": "为什么数据描述符优先级高于实例字典？", "hint": "便于框架强制拦截赋值，确保校验不被实例属性绕过。" },
+        { "question": "__set_name__ 有什么用？", "hint": "类创建时自动告知描述符它绑定的属性名。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Python", "面向对象"]
+    },
+    {
+      "title": "Python 的元类（metaclass）是什么？什么时候用？",
+      "slug": "python-metaclass",
+      "answerBrief": "元类是创建类的类，type 是默认元类。类是元类的实例，通过 metaclass 可在类创建时拦截并定制类的行为。适合做 ORM、接口校验、自动注册等框架级需求，业务代码很少需要。",
+      "answerDetail": "## 概念\n\n「类也是对象」，而创建类的就是元类。`type` 是 Python 的默认元类：\n\n```python\n# 用 type 动态创建类，等价于 class 语句\nMyClass = type(\"MyClass\", (object,), {\"x\": 1})\n```\n\n## 自定义元类\n\n继承 `type`，重写 `__new__` 或 `__init__`，在类创建时介入：\n\n```python\nclass Meta(type):\n    def __new__(mcs, name, bases, namespace):\n        namespace[\"created_by\"] = \"Meta\"\n        return super().__new__(mcs, name, bases, namespace)\n\nclass A(metaclass=Meta):\n    pass\n\nprint(A.created_by)  # Meta\n```\n\n## 典型用途\n\n- ORM 把类属性映射成数据库字段（如 Django Model）\n- 自动注册子类到注册表\n- 强制接口/命名规范校验\n- 实现单例\n\n## 何时该用\n\n> 「如果你拿不准是否需要元类，那就不需要。」\n\n多数定制可用类装饰器或 `__init_subclass__` 解决，元类是最后手段。",
+      "followUps": [
+        { "question": "__init_subclass__ 能替代元类吗？", "hint": "多数子类注册/校验场景可用它，更轻量。" },
+        { "question": "type 既是类又是元类，怎么理解？", "hint": "type 是自身的实例，是所有类的默认元类。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Python", "面向对象"]
+    },
+    {
+      "title": "asyncio 协程的工作原理是什么？async/await 怎么用？",
+      "slug": "python-asyncio-coroutine",
+      "answerBrief": "asyncio 基于事件循环实现单线程并发，协程用 async def 定义，await 在遇到 IO 时让出控制权给事件循环调度其他任务。适合高并发 IO 密集场景，不能加速 CPU 计算。",
+      "answerDetail": "## 核心模型\n\nasyncio 是**单线程 + 事件循环 + 协程**的协作式并发。协程在 `await` 点主动让出控制权，事件循环切换到其他就绪任务。\n\n```python\nimport asyncio\n\nasync def fetch(name, delay):\n    print(f\"{name} 开始\")\n    await asyncio.sleep(delay)  # 让出控制权\n    print(f\"{name} 完成\")\n    return name\n\nasync def main():\n    # 并发运行，总耗时约等于最长的那个\n    results = await asyncio.gather(\n        fetch(\"A\", 2),\n        fetch(\"B\", 1),\n    )\n    print(results)\n\nasyncio.run(main())\n```\n\n## 关键概念\n\n- `async def`：定义协程函数，调用返回协程对象（不会立即执行）\n- `await`：等待可等待对象，期间让出事件循环\n- `asyncio.gather` / `create_task`：并发调度多个协程\n\n## 适用与局限\n\n| 场景 | 是否合适 |\n| --- | --- |\n| 网络请求、数据库、文件等 IO | 非常合适 |\n| CPU 密集计算 | 不合适，会阻塞事件循环 |\n\nCPU 密集应放到 `run_in_executor` 或多进程。",
+      "followUps": [
+        { "question": "协程和线程的区别是什么？", "hint": "协程协作式、用户态切换、单线程；线程抢占式、内核调度。" },
+        { "question": "在协程里调用阻塞函数会怎样？", "hint": "会卡住整个事件循环，应用 run_in_executor 隔离。" },
+        { "question": "asyncio.gather 和 create_task 有何区别？", "hint": "create_task 立即调度返回 Task，gather 聚合并等待多个结果。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "并发", "高频"]
+    },
+    {
+      "title": "多进程和多线程在 Python 中如何选择？",
+      "slug": "python-multiprocessing-vs-threading",
+      "answerBrief": "受 GIL 限制，CPU 密集型用多进程（multiprocessing）真正并行，IO 密集型用多线程或 asyncio 即可。多进程内存隔离、开销大、需序列化通信；多线程共享内存、轻量但受 GIL。",
+      "answerDetail": "## 选择原则\n\n| 任务类型 | 推荐方案 | 原因 |\n| --- | --- | --- |\n| CPU 密集 | multiprocessing | 绕过 GIL，多核并行 |\n| IO 密集 | threading / asyncio | 阻塞时释放 GIL，开销小 |\n\n## 多进程\n\n每个进程有独立解释器、独立 GIL、独立内存空间。\n\n```python\nfrom multiprocessing import Pool\n\ndef square(x):\n    return x * x\n\nif __name__ == \"__main__\":\n    with Pool(4) as p:\n        print(p.map(square, range(10)))\n```\n\n- 优点：真正并行 CPU 计算\n- 缺点：进程创建开销大，数据需 pickle 序列化通信（Queue、Pipe、共享内存）\n\n## 多线程\n\n```python\nfrom concurrent.futures import ThreadPoolExecutor\n\nwith ThreadPoolExecutor(max_workers=8) as ex:\n    results = ex.map(fetch_url, urls)\n```\n\n- 优点：共享内存、轻量、适合 IO 等待\n- 缺点：受 GIL，CPU 密集无加速\n\n## 经验法则\n\n- 算得多 → 进程\n- 等得多 → 线程 / 协程",
+      "followUps": [
+        { "question": "进程间如何通信和共享数据？", "hint": "Queue、Pipe、Manager、共享内存 Value/Array。" },
+        { "question": "为什么多进程要写 if __name__ == '__main__'？", "hint": "Windows/spawn 启动方式会重新导入模块，避免递归创建进程。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "并发", "高频"]
+    },
+    {
+      "title": "Python 的垃圾回收机制是怎样的？",
+      "slug": "python-garbage-collection",
+      "answerBrief": "CPython 以引用计数为主：引用归零立即回收；辅以分代垃圾回收器处理循环引用。gc 模块可手动触发或调参。引用计数实时但无法解决循环引用，故需 gc 补充。",
+      "answerDetail": "## 双机制\n\nCPython 内存回收由两部分组成：\n\n1. **引用计数**（主）：每个对象记录被引用次数，归零立即释放。实时、简单，但无法回收循环引用。\n2. **分代垃圾回收**（辅）：检测并回收循环引用的不可达对象。\n\n## 引用计数\n\n```python\nimport sys\na = []\nprint(sys.getrefcount(a))  # 含临时引用，通常比预期多 1\n```\n\n## 循环引用问题\n\n```python\na = {}\nb = {}\na[\"b\"] = b\nb[\"a\"] = a   # 互相引用，计数永不归零\n```\n\n仅靠引用计数无法回收，需 gc 介入。\n\n## 分代回收\n\n对象分 0、1、2 三代。新对象在第 0 代，存活越久升入更老的代，回收频率越低（弱代假设：新对象更易死亡）。\n\n```python\nimport gc\ngc.collect()          # 手动触发\nprint(gc.get_threshold())\n```\n\n## 要点\n\n- 引用计数实时，分代回收周期性\n- `__del__` 配合循环引用可能延迟回收\n- 可用 `gc.disable()` 在特定场景关闭以提速",
+      "followUps": [
+        { "question": "为什么引用计数解决不了循环引用？", "hint": "互相引用使计数永不归零，对象虽不可达却不被释放。" },
+        { "question": "分代回收的弱代假设是什么？", "hint": "大多数对象很快死亡，越老的对象越可能长存。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Python", "语言特性"]
+    },
+    {
+      "title": "Python 的迭代器协议和 for 循环底层如何工作？",
+      "slug": "python-iteration-protocol",
+      "answerBrief": "for 循环先对可迭代对象调用 iter() 拿到迭代器，再不断调用 next() 取值，捕获 StopIteration 结束。可迭代对象实现 __iter__，迭代器额外实现 __next__。",
+      "answerDetail": "## 两个协议\n\n- **可迭代对象（Iterable）**：实现 `__iter__`，返回一个迭代器。\n- **迭代器（Iterator）**：实现 `__next__`（返回下一个值或抛 `StopIteration`），且 `__iter__` 返回自身。\n\n## for 的等价展开\n\n```python\nfor x in obj:\n    process(x)\n```\n\n等价于：\n\n```python\nit = iter(obj)        # 调 __iter__\nwhile True:\n    try:\n        x = next(it)  # 调 __next__\n    except StopIteration:\n        break\n    process(x)\n```\n\n## 自定义迭代器\n\n```python\nclass Countdown:\n    def __init__(self, n):\n        self.n = n\n    def __iter__(self):\n        return self\n    def __next__(self):\n        if self.n <= 0:\n            raise StopIteration\n        self.n -= 1\n        return self.n + 1\n\nfor i in Countdown(3):\n    print(i)   # 3 2 1\n```\n\n## 要点\n\n- 可迭代不等于迭代器，但迭代器一定可迭代。\n- 迭代器只能消费一次，耗尽即止。\n- 生成器是最常用的迭代器实现方式。",
+      "followUps": [
+        { "question": "可迭代对象和迭代器有什么区别？", "hint": "前者实现 __iter__ 可被多次迭代，后者还实现 __next__ 且一次性。" },
+        { "question": "为什么迭代器耗尽后不能复用？", "hint": "状态已走到尽头，再 next 持续抛 StopIteration。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "语言特性"]
+    },
+    {
+      "title": "Python 的 __slots__ 有什么作用？",
+      "slug": "python-slots",
+      "answerBrief": "__slots__ 限定实例只能拥有指定属性，不再为每个实例创建 __dict__，从而节省内存、略微加速属性访问。代价是失去动态添加属性和部分弱引用、多继承的灵活性。",
+      "answerDetail": "## 作用\n\n默认情况下每个实例用一个 `__dict__` 存属性，灵活但占内存。声明 `__slots__` 后，实例改用固定的描述符槽存储，省去 `__dict__`。\n\n```python\nclass Point:\n    __slots__ = (\"x\", \"y\")\n    def __init__(self, x, y):\n        self.x = x\n        self.y = y\n\np = Point(1, 2)\n# p.z = 3   # AttributeError，不能新增属性\n```\n\n## 收益\n\n- **省内存**：大量实例时差异明显（去掉每实例字典）\n- **属性访问略快**\n- 防止意外新增属性（更严格）\n\n## 代价与坑\n\n1. 不能动态添加未声明的属性。\n2. 默认不支持弱引用，需显式加 `\"__weakref__\"`。\n3. 多继承时多个父类都有 `__slots__` 会冲突。\n4. 子类未声明 `__slots__` 又会带回 `__dict__`。\n\n## 适用场景\n\n创建海量小对象（如几百万个坐标点、记录）时收益最大；普通业务对象通常不必。",
+      "followUps": [
+        { "question": "用了 __slots__ 还能动态加属性吗？", "hint": "默认不能，除非把 '__dict__' 也加入 slots。" },
+        { "question": "子类需要重复声明 __slots__ 吗？", "hint": "子类不声明会重新生成 __dict__，省内存效果失效。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "面向对象"]
+    },
+    {
+      "title": "Python 的 dataclass 是什么？相比普通类有何优势？",
+      "slug": "python-dataclass",
+      "answerBrief": "dataclass 是装饰器，自动为类生成 __init__、__repr__、__eq__ 等样板方法，专注存数据的类。相比手写更简洁，支持默认值、不可变 frozen、字段元数据等。",
+      "answerDetail": "## 是什么\n\n`@dataclass`（3.7+ 标准库）根据类型注解的字段，自动生成常用方法。\n\n```python\nfrom dataclasses import dataclass, field\n\n@dataclass\nclass User:\n    name: str\n    age: int = 0\n    tags: list = field(default_factory=list)  # 可变默认用 factory\n\nu = User(\"Tom\", 18)\nprint(u)           # User(name='Tom', age=18, tags=[])\nprint(u == User(\"Tom\", 18))  # True，自动 __eq__\n```\n\n## 自动生成\n\n- `__init__`、`__repr__`、`__eq__`\n- `order=True` 时生成比较方法\n- `frozen=True` 生成不可变实例（可哈希）\n\n## 关键点\n\n| 需求 | 写法 |\n| --- | --- |\n| 可变默认值 | field(default_factory=list) |\n| 不可变 | @dataclass(frozen=True) |\n| 排序支持 | @dataclass(order=True) |\n| 排除某字段比较 | field(compare=False) |\n\n## 对比\n\n相比 namedtuple 更灵活（可变、可加方法），相比手写类省去大量样板代码。注意可变默认值必须用 `default_factory`，否则报错。",
+      "followUps": [
+        { "question": "dataclass 中可变默认值为什么要用 default_factory？", "hint": "避免所有实例共享同一个可变默认对象。" },
+        { "question": "frozen=True 的 dataclass 有什么特点？", "hint": "实例不可变、自动可哈希，可作字典 key。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "面向对象", "高频"]
+    },
+    {
+      "title": "Python 的列表推导式和生成器表达式有什么区别？",
+      "slug": "python-comprehension-vs-genexpr",
+      "answerBrief": "列表推导式用 [] 一次性构建完整列表，占内存但可重复使用；生成器表达式用 () 惰性逐个产出，省内存但只能遍历一次。处理大数据流优先用生成器表达式。",
+      "answerDetail": "## 语法区别\n\n```python\nlist_comp = [x * x for x in range(1000000)]   # 立即占内存\ngen_expr  = (x * x for x in range(1000000))   # 惰性，几乎不占内存\n```\n\n## 核心差异\n\n| 维度 | 列表推导式 | 生成器表达式 |\n| --- | --- | --- |\n| 符号 | [] | () |\n| 求值 | 立即全部计算 | 惰性逐个 |\n| 内存 | 与元素数成正比 | 常数级 |\n| 可重复遍历 | 是 | 否（一次性） |\n| 索引访问 | 支持 | 不支持 |\n\n## 何时用哪个\n\n- 需要多次遍历、随机访问、`len()` → 列表推导式\n- 只遍历一次、数据量大、作为流水线中间环节 → 生成器表达式\n\n```python\n# 求和场景生成器更优，无需建完整列表\ntotal = sum(x * x for x in range(1000000))\n```\n\n## 同理\n\n字典推导式 `{k: v for ...}`、集合推导式 `{x for ...}` 也都是立即求值。",
+      "followUps": [
+        { "question": "为什么 sum(x for x in ...) 不用加方括号？", "hint": "作为唯一参数时圆括号可省，直接传生成器表达式更省内存。" },
+        { "question": "生成器表达式能调用 len() 吗？", "hint": "不能，惰性求值未知长度，需先转成列表。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Python", "语言特性", "高频"]
+    },
+    {
+      "title": "Python 中如何正确处理异常？try/except/else/finally 各自的作用？",
+      "slug": "python-exception-handling",
+      "answerBrief": "try 包裹可能出错的代码，except 捕获指定异常，else 在无异常时执行，finally 无论如何都执行用于清理。应捕获具体异常而非裸 except，避免吞掉错误。",
+      "answerDetail": "## 四个子句\n\n```python\ntry:\n    result = risky()\nexcept ValueError as e:\n    print(\"值错误\", e)\nexcept (KeyError, IndexError):\n    print(\"键或索引错误\")\nelse:\n    print(\"无异常时执行\", result)\nfinally:\n    print(\"总会执行，常用于释放资源\")\n```\n\n| 子句 | 何时执行 |\n| --- | --- |\n| try | 始终尝试 |\n| except | 匹配到对应异常时 |\n| else | try 未发生异常时 |\n| finally | 无论是否异常，总执行 |\n\n## 最佳实践\n\n1. **捕获具体异常**，别用裸 `except:` 吞掉一切（含 KeyboardInterrupt）。\n2. 用 `raise` 重新抛出，或 `raise NewError from e` 保留异常链。\n3. 仅在能处理时捕获，否则让它向上传播。\n4. 资源清理优先用 `with`（上下文管理器）而非手写 finally。\n\n## 自定义异常\n\n```python\nclass BusinessError(Exception):\n    pass\n\nraise BusinessError(\"业务校验失败\")\n```\n\n继承 `Exception`（而非 `BaseException`），按领域划分异常层次。",
+      "followUps": [
+        { "question": "为什么不建议用裸 except？", "hint": "会捕获 KeyboardInterrupt/SystemExit 等，掩盖真实问题。" },
+        { "question": "raise ... from ... 有什么用？", "hint": "显式建立异常链，保留原始上下文便于排查。" },
+        { "question": "else 子句和直接写在 try 末尾有何区别？", "hint": "else 只在无异常时运行，且其异常不会被本层 except 误捕获。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Python", "工程实践", "高频"]
+    },
+    {
+      "title": "Python 的类型注解（Type Hints）有什么作用？运行时会强制检查吗？",
+      "slug": "python-type-hints",
+      "answerBrief": "类型注解给变量、参数、返回值标注类型，提升可读性并支持 mypy 等静态检查和 IDE 补全。但 Python 运行时默认不强制检查，注解只是元信息，不影响实际执行。",
+      "answerDetail": "## 作用\n\n类型注解是给静态分析工具和人看的提示，不改变运行时行为。\n\n```python\nfrom typing import Optional\n\ndef greet(name: str, times: int = 1) -> str:\n    return (\"hi \" + name + \" \") * times\n\ndef find(uid: int) -> Optional[dict]:\n    ...\n```\n\n## 运行时不强制\n\n```python\ndef add(a: int, b: int) -> int:\n    return a + b\n\nadd(\"x\", \"y\")  # 运行时不报错，返回 'xy'\n```\n\n注解存于 `__annotations__`，解释器不会校验。需要校验得靠 mypy/pyright 静态检查，或 pydantic 等运行时库。\n\n## 常用写法（3.10+）\n\n```python\ndef f(x: int | None) -> list[str]:   # 内置泛型、联合类型\n    ...\n```\n\n- `list[int]`、`dict[str, int]` 直接用内置容器\n- `X | None` 替代 `Optional[X]`\n- `TypeAlias`、`Protocol`、`Generic` 支持高级场景\n\n## 价值\n\n- IDE 自动补全与重构\n- mypy 提前发现类型错误\n- 文档化函数契约",
+      "followUps": [
+        { "question": "如何让类型错误在运行时被发现？", "hint": "用 mypy 静态检查，或 pydantic/typeguard 做运行时校验。" },
+        { "question": "Optional[int] 和 int | None 有区别吗？", "hint": "语义等价，后者是 3.10+ 更简洁的写法。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Python", "工程实践", "高频"]
+    },
+    {
+      "title": "Python 的虚拟环境是什么？为什么需要它？",
+      "slug": "python-virtual-environment",
+      "answerBrief": "虚拟环境为每个项目隔离独立的 Python 解释器和依赖包，避免版本冲突和污染全局环境。用 venv 创建，激活后 pip 安装只影响当前环境。",
+      "answerDetail": "## 为什么需要\n\n不同项目可能依赖同一个包的不同版本。把所有包装到全局会冲突。虚拟环境给每个项目独立的依赖空间。\n\n## venv 用法\n\n```bash\n# 创建\npython -m venv .venv\n\n# 激活（Linux/macOS）\nsource .venv/bin/activate\n\n# 激活（Windows）\n.venv\\Scripts\\activate\n\n# 安装依赖只影响当前环境\npip install requests\n\n# 退出\ndeactivate\n```\n\n## 依赖管理\n\n```bash\npip freeze > requirements.txt      # 导出\npip install -r requirements.txt    # 还原\n```\n\n## 工具生态\n\n| 工具 | 特点 |\n| --- | --- |\n| venv | 标准库，轻量 |\n| virtualenv | 第三方，功能更多 |\n| conda | 含非 Python 依赖管理 |\n| poetry / pdm | 依赖+打包+锁文件一体 |\n| uv | Rust 编写，极快 |\n\n## 要点\n\n- `.venv` 应加入 `.gitignore`，提交的是 `requirements.txt` 或锁文件。\n- 激活后 `which python` 指向环境内解释器。",
+      "followUps": [
+        { "question": "requirements.txt 和锁文件有什么区别？", "hint": "前者常只列直接依赖，锁文件固定全部传递依赖的精确版本。" },
+        { "question": "poetry/uv 相比 venv+pip 有何优势？", "hint": "统一依赖解析、锁定、打包发布，速度与可复现性更好。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Python", "工程实践", "高频"]
+    },
+    {
+      "title": "Python 中 == 和 hash 的关系是什么？自定义类如何正确实现？",
+      "slug": "python-eq-hash",
+      "answerBrief": "若两对象 == 相等，则它们的 hash 必须相等。重写 __eq__ 会使类默认不可哈希，需一并实现 __hash__ 才能作字典 key 或集合元素，且 hash 应基于参与相等比较的不可变字段。",
+      "answerDetail": "## 契约\n\n- `a == b` 为真 ⟹ `hash(a) == hash(b)`（反之不必）\n- 相等的对象必须有相等的哈希，否则在 dict/set 中行为错乱\n\n## 重写 __eq__ 的副作用\n\n只要定义了 `__eq__`，Python 会把 `__hash__` 置为 `None`，实例变得不可哈希：\n\n```python\nclass P:\n    def __init__(self, x):\n        self.x = x\n    def __eq__(self, other):\n        return isinstance(other, P) and self.x == other.x\n\n# hash(P(1))  # TypeError: unhashable\n```\n\n## 正确实现\n\n```python\nclass P:\n    def __init__(self, x, y):\n        self.x, self.y = x, y\n    def __eq__(self, other):\n        return (self.x, self.y) == (other.x, other.y)\n    def __hash__(self):\n        return hash((self.x, self.y))  # 基于同一组字段\n```\n\n## 要点\n\n- `__hash__` 应只依赖**不可变**字段，否则放入 set 后修改会丢失。\n- 可变对象通常不应可哈希。\n- dataclass 用 `frozen=True` 或 `eq=True, frozen=True` 自动生成一致的 `__hash__`。",
+      "followUps": [
+        { "question": "为什么重写 __eq__ 后类就不可哈希了？", "hint": "默认 __hash__ 被置 None，防止相等语义与哈希不一致。" },
+        { "question": "为什么 __hash__ 只能基于不可变字段？", "hint": "字段变了哈希也变，对象会在 set/dict 中丢失定位。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Python", "面向对象"]
+    },
+    {
+      "title": "Python 闭包是什么？为什么循环里定义闭包会有坑？",
+      "slug": "python-closure",
+      "answerBrief": "闭包是内层函数捕获并记住外层作用域变量的函数。坑在于闭包捕获的是变量引用而非当时的值，循环中创建的多个闭包会共享同一个循环变量，最终都拿到最后一个值。",
+      "answerDetail": "## 闭包\n\n内层函数引用了外层函数的局部变量，并在外层返回后仍能访问它，就形成闭包。\n\n```python\ndef make_adder(n):\n    def adder(x):\n        return x + n   # 捕获 n\n    return adder\n\nadd5 = make_adder(5)\nprint(add5(10))  # 15\n```\n\n## 循环陷阱\n\n```python\nfuncs = [lambda: i for i in range(3)]\nprint([f() for f in funcs])  # [2, 2, 2]，而非 [0, 1, 2]\n```\n\n所有 lambda 捕获的是**同一个** `i`，循环结束后 `i == 2`。\n\n## 解决办法\n\n用默认参数在定义时绑定当前值：\n\n```python\nfuncs = [lambda i=i: i for i in range(3)]\nprint([f() for f in funcs])  # [0, 1, 2]\n```\n\n或用工厂函数把值固定进新作用域。\n\n## 修改外层变量\n\n```python\ndef counter():\n    count = 0\n    def inc():\n        nonlocal count   # 否则会当成新局部变量\n        count += 1\n        return count\n    return inc\n```\n\n`nonlocal` 声明才能在闭包内修改外层变量。",
+      "followUps": [
+        { "question": "nonlocal 和 global 有什么区别？", "hint": "nonlocal 绑定最近的外层函数作用域，global 绑定模块级。" },
+        { "question": "为什么默认参数能解决循环闭包问题？", "hint": "默认值在定义时求值，把当前循环值固定下来。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "语言特性", "高频"]
+    },
+    {
+      "title": "Python 的 set 底层如何实现？常见操作复杂度是多少？",
+      "slug": "python-set-internals",
+      "answerBrief": "set 和 dict 一样基于哈希表实现，元素必须可哈希。成员判断、增删平均 O(1)，最坏 O(n)。集合是无序的，并集、交集、差集等运算依赖哈希查找。",
+      "answerDetail": "## 底层\n\n`set` 与 `dict` 共享哈希表实现，但只存键不存值。元素必须可哈希（实现 `__hash__` 且不可变）。\n\n## 复杂度\n\n| 操作 | 平均 | 最坏 |\n| --- | --- | --- |\n| x in s | O(1) | O(n) |\n| add / remove | O(1) | O(n) |\n| 并集 s1 \\| s2 | O(len(s1)+len(s2)) | — |\n| 交集 s1 & s2 | O(min(len)) | — |\n\n相比 `list` 的 `in`（O(n)），用 `set` 做去重和成员判断快得多。\n\n```python\nseen = set()\nfor x in data:\n    if x not in seen:   # O(1)\n        seen.add(x)\n```\n\n## 集合运算\n\n```python\na = {1, 2, 3}\nb = {2, 3, 4}\nprint(a | b)  # 并集 {1, 2, 3, 4}\nprint(a & b)  # 交集 {2, 3}\nprint(a - b)  # 差集 {1}\nprint(a ^ b)  # 对称差 {1, 4}\n```\n\n## 要点\n\n- 无序，不支持索引。\n- 元素须可哈希，不能放 list。\n- 需要不可变集合用 `frozenset`，可作字典 key。",
+      "followUps": [
+        { "question": "set 和 frozenset 有什么区别？", "hint": "frozenset 不可变、可哈希，能作字典 key 或集合元素。" },
+        { "question": "为什么用 set 去重比 list 快？", "hint": "成员判断 set 是 O(1)，list 是 O(n) 线性扫描。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "数据结构", "高频"]
+    },
+    {
+      "title": "Python 的魔法方法（dunder methods）有哪些常见用途？",
+      "slug": "python-magic-methods",
+      "answerBrief": "魔法方法是以双下划线包裹的特殊方法，让自定义类支持运算符、内置函数和语法特性。如 __str__ 定制打印、__len__ 支持 len()、__getitem__ 支持下标、__call__ 让实例可调用。",
+      "answerDetail": "## 概念\n\n魔法方法（dunder = double underscore）是解释器在特定语法/内置函数触发时自动调用的钩子。\n\n## 常用分类\n\n| 方法 | 触发场景 |\n| --- | --- |\n| __init__ / __new__ | 创建与初始化 |\n| __str__ / __repr__ | print / 调试显示 |\n| __len__ | len(obj) |\n| __getitem__ / __setitem__ | obj[key] |\n| __iter__ / __next__ | 迭代 |\n| __call__ | obj() 像函数调用 |\n| __eq__ / __lt__ | 比较运算 |\n| __add__ / __mul__ | + / * 运算符 |\n| __enter__ / __exit__ | with 语句 |\n\n## 示例\n\n```python\nclass Vector:\n    def __init__(self, x, y):\n        self.x, self.y = x, y\n    def __add__(self, other):\n        return Vector(self.x + other.x, self.y + other.y)\n    def __repr__(self):\n        return f\"Vector({self.x}, {self.y})\"\n    def __len__(self):\n        return 2\n\nv = Vector(1, 2) + Vector(3, 4)\nprint(v)        # Vector(4, 6)\nprint(len(v))   # 2\n```\n\n## __str__ vs __repr__\n\n- `__str__` 面向用户，可读友好；`print()` 优先用它\n- `__repr__` 面向开发者，应尽量无歧义；缺 `__str__` 时回退到它",
+      "followUps": [
+        { "question": "__str__ 和 __repr__ 有什么区别？", "hint": "前者给用户看，后者给开发者看且应尽量可复现对象。" },
+        { "question": "__call__ 有什么实际用途？", "hint": "让实例像函数一样被调用，可用于带状态的可调用对象、装饰器。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "面向对象", "高频"]
+    },
+    {
+      "title": "Python 的浅层作用域规则 LEGB 是什么？",
+      "slug": "python-legb-scope",
+      "answerBrief": "LEGB 是 Python 变量查找顺序：Local 局部、Enclosing 外层函数、Global 模块全局、Built-in 内置。引用变量时由内向外逐层查找，赋值默认创建局部变量，需 global/nonlocal 改变绑定。",
+      "answerDetail": "## 四层作用域\n\n| 层级 | 含义 |\n| --- | --- |\n| L - Local | 当前函数内部 |\n| E - Enclosing | 外层嵌套函数 |\n| G - Global | 模块顶层 |\n| B - Built-in | 内置命名空间（如 len、print） |\n\n查找变量时按 **L → E → G → B** 顺序，找到即停。\n\n```python\nx = \"global\"\n\ndef outer():\n    x = \"enclosing\"\n    def inner():\n        print(x)   # 找到 enclosing\n    inner()\n\nouter()\n```\n\n## 赋值的陷阱\n\n函数内对变量赋值会默认把它当作**局部变量**：\n\n```python\ncount = 0\ndef bad():\n    count += 1   # UnboundLocalError！赋值使 count 变局部，读时还未定义\n```\n\n## global / nonlocal\n\n```python\ndef fix_global():\n    global count\n    count += 1     # 改模块级\n\ndef fix_enclosing():\n    x = 0\n    def inner():\n        nonlocal x  # 改外层函数的 x\n        x += 1\n    inner()\n```\n\n## 要点\n\n- 只读变量自动按 LEGB 查找。\n- 要在内层修改外层绑定，必须显式声明 `global` 或 `nonlocal`。",
+      "followUps": [
+        { "question": "为什么会出现 UnboundLocalError？", "hint": "函数内对变量赋值使其成局部，但读取发生在赋值前。" },
+        { "question": "如何屏蔽（shadow）内置函数？", "hint": "在局部用同名变量，如 list = [...] 会覆盖内置 list，应避免。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "语言特性"]
+    },
+    {
+      "title": "Python 中 @staticmethod、@classmethod 和实例方法有何区别？",
+      "slug": "python-method-types",
+      "answerBrief": "实例方法首参 self 操作实例；@classmethod 首参 cls 操作类，常用于工厂方法；@staticmethod 不接收 self/cls，是逻辑归类于类的普通函数，与类和实例状态无关。",
+      "answerDetail": "## 三种方法\n\n| 类型 | 首参 | 能访问 | 典型用途 |\n| --- | --- | --- | --- |\n| 实例方法 | self | 实例 + 类 | 操作实例数据 |\n| 类方法 | cls | 类 | 工厂方法、替代构造器 |\n| 静态方法 | 无 | 都不自动绑定 | 工具函数 |\n\n```python\nclass Pizza:\n    def __init__(self, size):\n        self.size = size\n\n    def describe(self):            # 实例方法\n        return f\"{self.size} inch\"\n\n    @classmethod\n    def large(cls):                # 工厂：返回类的实例\n        return cls(16)\n\n    @staticmethod\n    def price_per_inch(size):      # 与实例/类状态无关\n        return size * 1.5\n\np = Pizza.large()                 # 用类方法创建\nprint(Pizza.price_per_inch(16))   # 静态方法直接用\n```\n\n## 关键点\n\n- 类方法的 `cls` 在继承时指向**实际子类**，工厂方法因此能正确返回子类实例。\n- 静态方法只是放在类命名空间里的普通函数，便于组织代码。\n- 实例方法是最常见的，通过实例自动传入 `self`。",
+      "followUps": [
+        { "question": "为什么工厂方法用 classmethod 而不是 staticmethod？", "hint": "classmethod 的 cls 能在继承时返回正确的子类实例。" },
+        { "question": "静态方法能访问实例属性吗？", "hint": "不能，它不接收 self，需要状态就该用实例或类方法。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Python", "面向对象", "高频"]
+    },
+    {
+      "title": "Python 的 f-string 有什么优势？有哪些实用技巧？",
+      "slug": "python-fstring",
+      "answerBrief": "f-string（3.6+）在字符串前加 f，用花括号直接嵌入表达式，比 % 和 format 更简洁高效可读。支持格式规范、对齐、进制转换，3.8+ 的 = 还能同时打印变量名和值便于调试。",
+      "answerDetail": "## 基本用法\n\n```python\nname, age = \"Tom\", 18\nprint(f\"{name} is {age}\")         # Tom is 18\nprint(f\"{age * 2}\")              # 可写表达式\n```\n\n## 格式规范\n\n```python\npi = 3.14159\nprint(f\"{pi:.2f}\")               # 3.14 保留两位\nprint(f\"{1000000:,}\")           # 1,000,000 千分位\nprint(f\"{255:#x}\")              # 0xff 十六进制\nprint(f\"{0.25:.1%}\")            # 25.0% 百分比\nprint(f\"{'hi':>10}\")            # 右对齐宽 10\nprint(f\"{'hi':^10}\")            # 居中\n```\n\n## 调试神器（3.8+）\n\n```python\nx = 42\nprint(f\"{x=}\")    # x=42 自动带变量名\n```\n\n## 优势对比\n\n| 方式 | 可读性 | 性能 |\n| --- | --- | --- |\n| % 格式化 | 一般 | 一般 |\n| str.format | 较好 | 一般 |\n| f-string | 最好 | 最快 |\n\n## 注意\n\n- f-string 在运行时即时求值，不能用于需要延迟格式化的日志模板（用 `logging` 的 `%s` 惰性格式更省）。\n- 引号嵌套需小心，3.12 起放宽了同种引号嵌套限制。",
+      "followUps": [
+        { "question": "为什么 logging 推荐用 %s 而非 f-string？", "hint": "%s 惰性格式化，日志级别未启用时不做字符串拼接，省开销。" },
+        { "question": "f-string 的 {x=} 语法有什么用？", "hint": "3.8+ 调试用，自动输出变量名和值。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Python", "工程实践"]
+    },
+    {
+      "title": "functools.lru_cache 是什么？如何用它做缓存？",
+      "slug": "python-lru-cache",
+      "answerBrief": "lru_cache 是 functools 提供的装饰器，缓存函数对相同参数的返回值，再次调用直接命中省去重复计算。基于参数做 key，要求参数可哈希，maxsize 控制缓存容量，超出按最近最少使用淘汰。",
+      "answerDetail": "## 作用\n\n`@lru_cache` 把函数变成带缓存的版本，相同参数只计算一次。LRU = Least Recently Used，缓存满了淘汰最久未用的。\n\n```python\nfrom functools import lru_cache\n\n@lru_cache(maxsize=128)\ndef fib(n):\n    if n < 2:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\nprint(fib(50))          # 瞬间出结果，避免指数级重复计算\nprint(fib.cache_info()) # 查看命中率\nfib.cache_clear()       # 清空缓存\n```\n\n## 关键点\n\n- 缓存 key 由参数构成，**参数必须可哈希**（不能传 list、dict）。\n- `maxsize=None` 表示无上限缓存（即 `@cache`，3.9+ 的简写）。\n- 适合**纯函数**（无副作用、相同输入相同输出）。\n\n## 注意陷阱\n\n| 风险 | 说明 |\n| --- | --- |\n| 内存泄漏 | maxsize=None 时缓存只增不减 |\n| 副作用函数 | 缓存会跳过真实执行，结果失真 |\n| 可变默认/全局依赖 | 输入相同但外部状态变了仍命中旧值 |\n\n## 对比手写 dict 缓存\n\n`lru_cache` 自动处理 key、淘汰、线程安全，省去样板代码，是记忆化的首选。",
+      "followUps": [
+        { "question": "为什么 lru_cache 的参数必须可哈希？", "hint": "缓存用参数构造哈希表 key，不可哈希无法定位缓存槽。" },
+        { "question": "@cache 和 @lru_cache 有什么关系？", "hint": "3.9+ 的 @cache 等价于 lru_cache(maxsize=None)。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "工程实践", "高频"]
+    },
+    {
+      "title": "Python 的 collections 模块有哪些常用容器？",
+      "slug": "python-collections-module",
+      "answerBrief": "collections 提供增强容器：Counter 计数、defaultdict 带默认值字典、deque 双端队列、namedtuple 具名元组、OrderedDict 有序字典。它们针对特定场景比内置类型更高效易用。",
+      "answerDetail": "## 常用容器\n\n| 类型 | 用途 |\n| --- | --- |\n| Counter | 元素计数、频次统计 |\n| defaultdict | 缺失 key 自动给默认值 |\n| deque | 两端 O(1) 增删的队列 |\n| namedtuple | 带字段名的轻量不可变记录 |\n| OrderedDict | 强调顺序操作的字典 |\n\n## Counter\n\n```python\nfrom collections import Counter\nc = Counter(\"abracadabra\")\nprint(c.most_common(2))   # [('a', 5), ('b', 2)]\n```\n\n## defaultdict\n\n```python\nfrom collections import defaultdict\ngroups = defaultdict(list)\ngroups[\"x\"].append(1)     # 无需先判断 key 是否存在\n```\n\n## deque\n\n```python\nfrom collections import deque\nq = deque([1, 2, 3])\nq.appendleft(0)           # 左端 O(1)\nq.pop()                   # 右端 O(1)\n```\n\n`list` 在头部插入是 O(n)，`deque` 两端都是 O(1)，适合队列/滑动窗口。\n\n## namedtuple\n\n```python\nfrom collections import namedtuple\nPoint = namedtuple(\"Point\", [\"x\", \"y\"])\np = Point(1, 2)\nprint(p.x, p.y)           # 可按名访问\n```\n\n## 选型\n\n计数用 Counter，分组用 defaultdict，双端队列用 deque，固定字段记录用 namedtuple 或 dataclass。",
+      "followUps": [
+        { "question": "deque 相比 list 做队列好在哪？", "hint": "两端增删都是 O(1)，list 头部操作是 O(n)。" },
+        { "question": "namedtuple 和 dataclass 怎么选？", "hint": "前者不可变、轻量、可解包；后者可变、可加方法、更灵活。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Python", "数据结构", "高频"]
+    },
+    {
+      "title": "Python 中 sorted 和 list.sort 有什么区别？如何自定义排序？",
+      "slug": "python-sorting",
+      "answerBrief": "sort 是列表原地排序返回 None，sorted 返回新列表适用任意可迭代对象。两者都用 key 函数指定排序依据、reverse 控制升降序，Python 排序是稳定的，相等元素保持原有相对顺序。",
+      "answerDetail": "## 两者区别\n\n| 维度 | list.sort() | sorted() |\n| --- | --- | --- |\n| 作用对象 | 仅 list | 任意可迭代 |\n| 是否原地 | 是，改原列表 | 否，返回新列表 |\n| 返回值 | None | 排好序的 list |\n\n```python\nnums = [3, 1, 2]\nnums.sort()              # 原地，nums 变 [1, 2, 3]\nnew = sorted([3, 1, 2])  # 返回新列表，原数据不变\n```\n\n## 自定义排序：key 函数\n\n```python\nwords = [\"banana\", \"pie\", \"a\"]\nprint(sorted(words, key=len))            # 按长度\nprint(sorted(words, key=str.lower))      # 忽略大小写\n\npeople = [(\"Tom\", 18), (\"Amy\", 18), (\"Bob\", 20)]\nprint(sorted(people, key=lambda p: (p[1], p[0])))  # 先按年龄再按名\n```\n\n## 稳定排序\n\nPython 的排序（Timsort）是**稳定的**：key 相等的元素保持原相对顺序。可借此做多级排序——先按次要键排，再按主要键排。\n\n## 降序\n\n```python\nsorted(nums, reverse=True)\n```\n\n## 性能\n\nTimsort 最坏 O(n log n)，对部分有序数据接近 O(n)。`key` 对每个元素只计算一次（装饰-排序-去装饰）。",
+      "followUps": [
+        { "question": "排序稳定性有什么实际用途？", "hint": "可分多趟按不同键排序实现多级排序而不打乱。" },
+        { "question": "key 和已废弃的 cmp 参数有何不同？", "hint": "key 对每个元素计算一次更高效，cmp 两两比较已在 Py3 移除。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Python", "数据结构", "高频"]
+    },
+    {
+      "title": "Python 模块的导入机制是怎样的？如何避免循环导入？",
+      "slug": "python-import-system",
+      "answerBrief": "import 时 Python 按 sys.path 查找模块，首次导入会执行模块代码并缓存到 sys.modules，再次导入直接复用。循环导入指两模块互相 import，可通过延迟导入、重构公共依赖或改用 import 模块而非 from 导入名字来规避。",
+      "answerDetail": "## 导入流程\n\n1. 在 `sys.modules` 缓存中查找，命中则直接返回\n2. 否则按 `sys.path` 搜索模块文件\n3. 找到后**执行一次**模块顶层代码，将模块对象存入 `sys.modules`\n4. 绑定名字到当前命名空间\n\n```python\nimport sys\nimport json\nprint(\"json\" in sys.modules)  # True，已缓存\n```\n\n## 模块只执行一次\n\n多次 `import` 同一模块不会重复执行其顶层代码，因为有缓存。这也是模块级单例的实现基础。\n\n## 循环导入问题\n\n```python\n# a.py\nfrom b import foo   # 导入 b\n# b.py\nfrom a import bar   # 又导入 a，此时 a 尚未执行完\n```\n\n导入 a 时 a 还没执行完就去导入 b，b 反过来找 a 里还不存在的名字，抛 `ImportError`。\n\n## 规避手段\n\n| 方法 | 说明 |\n| --- | --- |\n| 延迟导入 | 把 import 移到函数内部，用时才导入 |\n| 重构 | 抽出公共部分到第三个模块 |\n| import 模块 | 用 `import a` 再 `a.bar`，而非 `from a import bar` |\n\n## 要点\n\n- `from x import y` 在导入时即解析 `y`，更易触发循环导入错误。\n- 合理分层、依赖单向流动是根治之道。",
+      "followUps": [
+        { "question": "为什么 from x import y 比 import x 更易循环导入失败？", "hint": "前者导入时立刻解析具体名字，此时对方可能尚未定义。" },
+        { "question": "sys.modules 缓存有什么作用？", "hint": "避免重复执行模块代码，保证模块单例，加速后续导入。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Python", "工程实践"]
+    }
+  ]
+}

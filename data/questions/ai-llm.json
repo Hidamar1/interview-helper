@@ -1,0 +1,468 @@
+{
+  "bank": {
+    "name": "AI 大模型",
+    "slug": "ai-llm",
+    "description": "Transformer · RAG · Agent · 微调",
+    "icon": "🤖",
+    "category": "AI 大模型",
+    "sortOrder": 8
+  },
+  "questions": [
+    {
+      "title": "Transformer 的整体结构是怎样的？相比 RNN/CNN 有什么优势？",
+      "slug": "ai-llm-transformer-architecture",
+      "answerBrief": "Transformer 由 Encoder 和 Decoder 堆叠组成，核心是 Self-Attention 加前馈网络，配残差与 LayerNorm。它靠注意力一次性建模全局依赖，可并行计算，长程依赖建模强于 RNN。",
+      "answerDetail": "## 整体结构\n\nTransformer 是编码器-解码器架构，每层包含两个子层：多头自注意力和位置前馈网络（FFN），子层之间用残差连接和 LayerNorm 包裹。\n\n```\nInput → Embedding + 位置编码 → N×(MHA → Add&Norm → FFN → Add&Norm) → 输出\n```\n\n## 三类主流变体\n\n| 类型 | 代表 | 用途 |\n| --- | --- | --- |\n| Encoder-only | BERT | 理解/分类 |\n| Decoder-only | GPT、LLaMA | 生成 |\n| Encoder-Decoder | T5 | 翻译/摘要 |\n\n## 相比 RNN/CNN 的优势\n\n- **并行计算**：序列内所有 token 同时算注意力，不像 RNN 必须按时间步串行，训练吞吐高。\n- **长程依赖**：任意两个 token 间路径长度为 O(1)，避免 RNN 的梯度消失。\n- **可解释性**：注意力权重提供一定的依赖可视化。\n\n代价是注意力对序列长度是 O(n²) 复杂度，长文本开销大。",
+      "followUps": [
+        { "question": "为什么现在主流大模型几乎都是 Decoder-only？", "hint": "从训练目标统一性、scaling 效率、生成任务自然契合角度回答。" },
+        { "question": "残差连接和 LayerNorm 各自解决了什么问题？", "hint": "残差缓解深层梯度消失，Norm 稳定激活分布。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["AI 大模型", "Transformer", "基础", "高频"]
+    },
+    {
+      "title": "Self-Attention 是如何计算的？为什么要除以根号 d_k？",
+      "slug": "ai-llm-self-attention-compute",
+      "answerBrief": "Self-Attention 用 Q、K、V 三个投影，算 Q 与 K 点积得到相似度分数，缩放后过 softmax 加权求和 V。除以根号 d_k 是为了防止点积数值过大导致 softmax 梯度消失。",
+      "answerDetail": "## 计算公式\n\n```\nAttention(Q, K, V) = softmax(Q·Kᵀ / √d_k) · V\n```\n\n输入经过三个线性层得到 Query、Key、Value。Q 与每个 K 做点积衡量相关性，得到注意力分数矩阵；缩放后过 softmax 归一化为权重，再对 V 加权求和。\n\n## 为什么除以 √d_k\n\n当维度 d_k 较大时，Q·K 的点积是 d_k 个乘积之和，方差随维度线性增大，数值容易很大。过大的输入会让 softmax 落入饱和区，梯度趋近于 0，训练困难。除以 √d_k 把方差拉回到约 1，保持梯度稳定。\n\n## 多头注意力\n\n```python\n# 将 d_model 切成 h 个头，各自独立做注意力\nQ = Q.view(B, L, h, d_k).transpose(1, 2)\nscores = (Q @ K.transpose(-2, -1)) / math.sqrt(d_k)\nattn = scores.softmax(-1) @ V\n```\n\n多头让模型在不同子空间并行关注不同模式（语法、指代等），再拼接投影回去。",
+      "followUps": [
+        { "question": "多头注意力比单头注意力强在哪里？", "hint": "不同头关注不同子空间表示，增强表达能力。" },
+        { "question": "如果不加位置编码，Self-Attention 会有什么问题？", "hint": "注意力对输入顺序是置换不变的，无法区分词序。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "Transformer", "Self-Attention", "高频"]
+    },
+    {
+      "title": "Self-Attention 的时间和空间复杂度是多少？有哪些优化方案？",
+      "slug": "ai-llm-attention-complexity",
+      "answerBrief": "标准注意力对序列长度 n 是 O(n²·d) 时间、O(n²) 空间，瓶颈在注意力矩阵。优化思路有稀疏注意力、线性注意力、FlashAttention 的 IO 感知分块，以及滑动窗口注意力。",
+      "answerDetail": "## 复杂度来源\n\n注意力分数矩阵是 n×n，计算和存储都随序列长度平方增长：\n\n- 时间：Q·Kᵀ 与加权求和各 O(n²·d)\n- 空间：存 n×n 注意力矩阵 O(n²)\n\n## 主流优化方案\n\n| 方案 | 思路 |\n| --- | --- |\n| FlashAttention | IO 感知分块计算，不落地 n×n 矩阵，省显存且更快 |\n| 稀疏注意力 | 只算局部窗口或全局 token，复杂度降到近线性 |\n| 线性注意力 | 用核函数近似 softmax，O(n) 复杂度 |\n| 滑动窗口 | Mistral 等只关注固定窗口内 token |\n\n## FlashAttention 关键\n\nFlashAttention 并不减少计算量，而是通过分块（tiling）把中间结果保留在 SRAM，避免反复读写 HBM，从而显著加速并降低显存峰值。它已是现代推理/训练框架的默认实现。",
+      "followUps": [
+        { "question": "FlashAttention 为什么能省显存却不改变结果？", "hint": "分块在线 softmax，数学等价，只是不存全量矩阵。" },
+        { "question": "稀疏注意力会牺牲什么？", "hint": "可能丢失远距离全局依赖，需配合全局 token 补偿。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["AI 大模型", "Transformer", "推理优化"]
+    },
+    {
+      "title": "为什么需要位置编码？绝对位置编码和 RoPE 有什么区别？",
+      "slug": "ai-llm-positional-encoding",
+      "answerBrief": "Self-Attention 本身对顺序无感，需位置编码注入位置信息。绝对位置编码（如正弦）直接加到 embedding 上；RoPE 用旋转矩阵作用于 Q/K，天然编码相对位置，外推性更好，是当前主流。",
+      "answerDetail": "## 为什么需要位置编码\n\n注意力是对 token 集合的加权，置换输入顺序结果不变，所以必须显式注入位置信息，模型才能区分「我打你」和「你打我」。\n\n## 三类方案对比\n\n| 方案 | 特点 |\n| --- | --- |\n| 正弦绝对编码 | 固定函数，加到输入 embedding，无需训练 |\n| 可学习绝对编码 | BERT 用，超出训练长度无法外推 |\n| RoPE 旋转位置编码 | 对 Q/K 按位置旋转，编码相对位置，外推好 |\n\n## RoPE 的优势\n\nRoPE 通过对 Query/Key 向量按位置施加旋转，使两个 token 的注意力分数只依赖它们的相对距离。这让模型具备更好的长度外推能力，配合 NTK 插值、YaRN 等手段还能扩展上下文窗口。LLaMA、Qwen 等主流模型都采用 RoPE。",
+      "followUps": [
+        { "question": "RoPE 为什么有更好的长度外推能力？", "hint": "相对位置建模 + 旋转的周期性，配合插值可扩窗。" },
+        { "question": "如何把 RoPE 模型的上下文窗口从 4K 扩到 32K？", "hint": "位置插值 PI、NTK-aware、YaRN 等缩放方法。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "Transformer", "位置编码"]
+    },
+    {
+      "title": "KV Cache 是什么？为什么能加速推理？带来什么问题？",
+      "slug": "ai-llm-kv-cache",
+      "answerBrief": "KV Cache 缓存历史 token 的 Key/Value，自回归生成时新 token 只需算自己的 Q 再复用缓存，避免重复计算，把每步从 O(n²) 降到 O(n)。代价是显存随序列长度线性增长。",
+      "answerDetail": "## 原理\n\n自回归生成逐个产出 token。若不缓存，每生成一个 token 都要重算前面所有 token 的 K、V，浪费巨大。KV Cache 把已算过的 Key、Value 存下来，新步只计算当前 token 的 Q、K、V，并把新的 K、V 追加进缓存。\n\n```\n第 t 步：Q_t 与缓存中 K_1..K_t 做注意力，复用 V_1..V_t\n```\n\n## 收益与代价\n\n- **收益**：把每步注意力计算从重算全序列降为只算增量，吞吐大幅提升。\n- **代价**：缓存大小 = 2 × 层数 × 头数 × 头维度 × 序列长度 × batch，长上下文 + 大 batch 下显存吃紧，常成为推理瓶颈。\n\n## 显存优化\n\n| 技术 | 思路 |\n| --- | --- |\n| MQA / GQA | 多个 Q 头共享少量 KV 头，缓存缩小数倍 |\n| PagedAttention | vLLM 分页管理 KV，减少碎片浪费 |\n| KV 量化 | 把缓存压成 INT8/INT4 |",
+      "followUps": [
+        { "question": "MQA、GQA、MHA 三者关系是什么？", "hint": "KV 头数从多到少，质量与显存的权衡。" },
+        { "question": "PagedAttention 解决了什么痛点？", "hint": "KV Cache 显存碎片化与预留浪费。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "推理优化", "KV Cache", "高频"]
+    },
+    {
+      "title": "temperature、top-p、top-k 这些解码参数分别有什么作用？",
+      "slug": "ai-llm-decoding-params",
+      "answerBrief": "temperature 调整概率分布的平滑度，越高越随机；top-k 只在概率最高的 k 个 token 里采样；top-p（核采样）选累积概率达到 p 的最小 token 集合。三者控制生成的随机性与多样性。",
+      "answerDetail": "## 各参数作用\n\n- **temperature**：对 logits 除以 T 再 softmax。T<1 让分布更尖锐、输出更确定；T>1 更平滑、更随机；T→0 近似贪心。\n- **top-k**：每步只保留概率最高的 k 个候选再归一化采样，过滤长尾。\n- **top-p（nucleus）**：按概率从高到低累加，取累积概率刚好≥p 的最小集合采样，候选数随上下文动态变化。\n\n## 典型配置\n\n| 场景 | 建议 |\n| --- | --- |\n| 代码/抽取/确定性任务 | temperature 0~0.2，近贪心 |\n| 通用问答 | temperature 0.7，top-p 0.9 |\n| 创意写作 | temperature 0.9~1.0，top-p 0.95 |\n\n```python\nresp = client.chat.completions.create(\n    model=\"...\",\n    temperature=0.7,\n    top_p=0.9,\n)\n```\n\n实践中常 temperature 与 top-p 二选一为主调，避免叠加导致难以预期。",
+      "followUps": [
+        { "question": "为什么 top-p 通常比 top-k 更稳健？", "hint": "候选集随分布尖锐度自适应，不像固定 k。" },
+        { "question": "贪心解码和 beam search 各有什么问题？", "hint": "贪心易陷局部、重复；beam 计算大且文本平淡。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["AI 大模型", "解码策略", "高频"]
+    },
+    {
+      "title": "大模型的训练通常分哪几个阶段？各阶段目标是什么？",
+      "slug": "ai-llm-training-stages",
+      "answerBrief": "通常分预训练、监督微调 SFT、对齐三阶段。预训练在海量语料上学语言与知识；SFT 用指令数据学会遵循指令；对齐（RLHF 或 DPO）让输出更符合人类偏好与安全要求。",
+      "answerDetail": "## 三阶段流程\n\n| 阶段 | 数据 | 目标 |\n| --- | --- | --- |\n| 预训练 | TB 级无标注语料 | 下一 token 预测，习得语言与世界知识 |\n| SFT | 高质量指令-回答对 | 学会遵循指令、对话格式 |\n| 对齐 | 人类偏好数据 | 输出更有用、无害、诚实 |\n\n## 各阶段要点\n\n- **预训练**：自监督，成本占绝大部分，决定模型能力上限。\n- **SFT（指令微调）**：用几万到几十万条高质量样本，让基座模型变成能对话的助手，数据质量比数量更关键。\n- **对齐**：RLHF 训练奖励模型再用 PPO 优化；DPO 则跳过奖励模型直接用偏好对优化，更简单稳定。\n\n现代流程还会加入持续预训练、长上下文扩展、推理能力强化（如 RLVR/可验证奖励）等环节。",
+      "followUps": [
+        { "question": "为什么 SFT 阶段数据质量比数量更重要？", "hint": "少量高质量对齐风格，噪声样本会污染行为。" },
+        { "question": "RLVR（可验证奖励强化学习）和 RLHF 有什么不同？", "hint": "用规则/答案可验证的奖励替代人类偏好打分。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["AI 大模型", "训练", "高频"]
+    },
+    {
+      "title": "RLHF 的完整流程是怎样的？为什么需要奖励模型？",
+      "slug": "ai-llm-rlhf-pipeline",
+      "answerBrief": "RLHF 分三步：先 SFT 得到初始策略，再用人类排序的偏好数据训练奖励模型 RM，最后用 PPO 以 RM 打分为奖励优化策略。奖励模型把难以量化的人类偏好转成可微的标量信号供 RL 使用。",
+      "answerDetail": "## 三步流程\n\n1. **SFT**：用指令数据微调出初始策略模型。\n2. **训练奖励模型**：让模型对同一 prompt 生成多个回答，人类排序，RM 学习给好回答高分。\n3. **PPO 强化学习**：策略模型生成回答，RM 打分作为奖励，PPO 更新策略，同时加 KL 惩罚约束不偏离 SFT 太远。\n\n```\nprompt → 策略生成 → RM 打分 → PPO 更新（+KL 惩罚）\n```\n\n## 为什么需要奖励模型\n\n人类逐条标注输出好坏成本极高且无法直接求导。RM 把有限的人类偏好泛化成一个可对任意输出打分的函数，使 RL 能大规模采样优化。\n\n## 难点\n\n- **奖励黑客**：策略钻 RM 漏洞拿高分却质量差，需 KL 约束与 RM 持续更新。\n- **训练不稳**：PPO 超参敏感，工程复杂，这也是 DPO 流行的原因。",
+      "followUps": [
+        { "question": "PPO 里的 KL 惩罚起什么作用？", "hint": "防止策略偏离参考模型过远导致崩坏或刷分。" },
+        { "question": "什么是奖励黑客（reward hacking）？怎么缓解？", "hint": "钻奖励漏洞，需正则、RM 迭代、约束。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["AI 大模型", "训练", "RLHF"]
+    },
+    {
+      "title": "DPO 是什么？相比 RLHF（PPO）有什么优势？",
+      "slug": "ai-llm-dpo",
+      "answerBrief": "DPO（直接偏好优化）跳过显式奖励模型和强化学习，把偏好对齐转化为一个分类式的监督损失，直接在「优选-劣选」数据上优化策略。它无需 RM 和 PPO，训练更稳定、实现更简单。",
+      "answerDetail": "## 核心思想\n\nDPO 推导出 RLHF 目标的闭式解，证明最优策略与奖励之间存在解析关系，于是可以绕过奖励模型，直接用偏好对训练。\n\n```\nL_DPO = -log σ( β·[ logπ(y_w|x)/π_ref(y_w|x) − logπ(y_l|x)/π_ref(y_l|x) ] )\n```\n\ny_w 是优选回答，y_l 是劣选，π_ref 是参考模型，β 控制偏离强度。损失本质是让模型给优选更高的相对对数概率。\n\n## 相比 PPO 的优势\n\n| 维度 | DPO | PPO |\n| --- | --- | --- |\n| 奖励模型 | 不需要 | 需要单独训练 |\n| 训练稳定性 | 高，类监督学习 | 低，超参敏感 |\n| 工程复杂度 | 低 | 高（采样+RM+RL） |\n\n## 局限\n\nDPO 离线训练，探索性弱于在线 RL，对偏好数据分布敏感；衍生出 IPO、KTO、ORPO 等改进。生产中常 DPO 与在线 RL 结合使用。",
+      "followUps": [
+        { "question": "DPO 里的 β 参数控制什么？", "hint": "对参考模型的偏离强度，类似 KL 约束力度。" },
+        { "question": "DPO 相比 PPO 在数据利用上有什么短板？", "hint": "离线无在线探索，依赖偏好数据覆盖度。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["AI 大模型", "训练", "DPO"]
+    },
+    {
+      "title": "LoRA 的原理是什么？为什么能大幅降低微调成本？",
+      "slug": "ai-llm-lora",
+      "answerBrief": "LoRA 冻结原权重，在权重旁挂一个低秩分解的旁路矩阵 BA，只训练这两个小矩阵。因为更新量被假设是低秩的，可训练参数量降到千分之一以内，显存和存储成本大幅下降。",
+      "answerDetail": "## 原理\n\nLoRA 假设微调时的权重更新 ΔW 是低秩的，把它分解为两个小矩阵相乘：\n\n```\nW' = W + ΔW = W + B·A   （B 是 d×r，A 是 r×k，r 远小于 d、k）\n```\n\n训练时冻结 W，只更新 A、B。推理时可把 BA 合并回 W，不增加延迟。\n\n## 为什么省成本\n\n- **参数少**：只训练秩为 r 的旁路，可训练参数常不到全量的 0.1%。\n- **显存低**：无需为冻结参数存优化器状态（Adam 动量），显存占用骤减。\n- **可插拔**：一个基座配多套 LoRA 适配器，按任务切换。\n\n## 关键超参\n\n| 超参 | 作用 |\n| --- | --- |\n| r（秩） | 容量，越大越强但越贵 |\n| alpha | 缩放系数，控制旁路影响 |\n| target_modules | 给哪些层加 LoRA（常是注意力 q/v 投影） |\n\nQLoRA 进一步把基座量化到 4bit，使单卡微调大模型成为可能。",
+      "followUps": [
+        { "question": "QLoRA 在 LoRA 基础上做了什么？", "hint": "4bit NF4 量化基座 + 双量化 + 分页优化器。" },
+        { "question": "LoRA 的秩 r 设太小或太大分别有什么影响？", "hint": "太小欠拟合容量不足，太大接近全量失去优势。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "微调", "PEFT", "高频"]
+    },
+    {
+      "title": "常见的参数高效微调（PEFT）方法有哪些？如何选型？",
+      "slug": "ai-llm-peft-methods",
+      "answerBrief": "PEFT 常见有 LoRA/QLoRA、Adapter、Prefix/Prompt Tuning、(IA)³ 等。它们只训练少量参数。选型看显存预算、任务复杂度和是否需要多任务切换，LoRA/QLoRA 是当前最通用的默认选择。",
+      "answerDetail": "## 主流方法对比\n\n| 方法 | 思路 | 特点 |\n| --- | --- | --- |\n| LoRA | 低秩旁路矩阵 | 通用、可合并、无推理延迟 |\n| QLoRA | 量化基座 + LoRA | 单卡微调大模型 |\n| Adapter | 层间插小型瓶颈模块 | 增加推理延迟 |\n| Prefix Tuning | 在每层 KV 前加可训练前缀 | 不改原权重 |\n| Prompt Tuning | 只训练软提示 embedding | 参数最少，效果依赖规模 |\n\n## 选型建议\n\n- **显存紧张**：QLoRA，4bit 基座大幅省显存。\n- **追求质量与通用性**：LoRA，可合并无延迟，生态成熟。\n- **多任务热切换**：LoRA 适配器按需加载。\n- **超大模型 + 极少样本**：Prompt/Prefix Tuning。\n\n## 实践要点\n\n全参微调质量上限最高但成本极高、易过拟合和灾难性遗忘。绝大多数业务场景 LoRA/QLoRA 已能达到接近全量的效果，是默认起点。",
+      "followUps": [
+        { "question": "什么是灾难性遗忘？微调时怎么缓解？", "hint": "学新忘旧，可混入通用数据、降学习率、用 PEFT。" },
+        { "question": "Adapter 为什么会增加推理延迟而 LoRA 不会？", "hint": "Adapter 是串行新增模块，LoRA 可合并进原权重。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "微调", "PEFT"]
+    },
+    {
+      "title": "RAG 的完整链路是怎样的？每个环节有哪些优化手段？",
+      "slug": "ai-llm-rag-pipeline",
+      "answerBrief": "RAG 链路为文档加载切分、向量化入库、查询改写召回、重排序、拼接上下文生成。切分粒度与重叠、混合检索、Rerank 模型、上下文压缩是各环节的核心优化点。",
+      "answerDetail": "## 标准链路\n\n```\n离线：文档 → 清洗切分 → embedding → 向量库\n在线：query → 改写 → 召回 → 重排 → 拼上下文 → LLM 生成\n```\n\n## 各环节优化\n\n| 环节 | 优化手段 |\n| --- | --- |\n| 切分 | 按语义切、设置重叠、父子分块 |\n| 召回 | 向量 + BM25 混合检索、多查询改写 |\n| 重排 | Cross-Encoder Rerank 精排 Top-K |\n| 上下文 | 压缩去噪、按相关性排序、引用标注 |\n| 生成 | 提示约束「依据上下文回答，不知道就说不知道」 |\n\n## 关键经验\n\n- 检索质量决定上限，召回不到正确片段，再强的模型也答不对。\n- 混合检索（稠密向量 + 稀疏 BM25）能兼顾语义与关键词精确匹配。\n- Rerank 往往是性价比最高的提升点：召回放宽到 Top-50，重排后取 Top-5。",
+      "followUps": [
+        { "question": "切分 chunk 太大或太小分别有什么问题？", "hint": "语义完整性 vs 检索精准度的权衡。" },
+        { "question": "向量召回不准时排查思路？", "hint": "embedding 模型领域适配、查询改写、混合检索 BM25。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "RAG", "高频"]
+    },
+    {
+      "title": "为什么要做 RAG 而不是直接微调把知识塞进模型？",
+      "slug": "ai-llm-rag-vs-finetune",
+      "answerBrief": "RAG 把知识放在外部库，更新知识只需改文档、可溯源、避免幻觉且成本低；微调把知识固化进权重，适合改变模型的风格、格式和能力，但知识更新需重训。两者解决的问题不同，常配合使用。",
+      "answerDetail": "## 本质区别\n\n- **RAG**：检索增强，知识在外部，模型即用即查。\n- **微调**：把知识/行为编码进权重。\n\n## 对比维度\n\n| 维度 | RAG | 微调 |\n| --- | --- | --- |\n| 知识更新 | 改文档即可，分钟级 | 需重新训练 |\n| 可溯源 | 能给出引用来源 | 不可解释 |\n| 时效/私有知识 | 强 | 弱 |\n| 改变风格/格式/能力 | 弱 | 强 |\n| 成本 | 低，主要是检索 | 高，需算力与数据 |\n\n## 如何选\n\n- 知识频繁变化、需溯源、私有文档问答 → RAG。\n- 固定领域风格、特定输出格式、需要新能力 → 微调。\n- 复杂场景常二者结合：微调让模型更会用检索结果，RAG 提供实时知识。\n\n口诀：RAG 解决「知道什么」，微调解决「怎么表达和行动」。",
+      "followUps": [
+        { "question": "什么场景下微调比 RAG 更合适？", "hint": "固定格式、风格对齐、特定推理能力、低延迟。" },
+        { "question": "RAG 和微调能否结合？怎么结合？", "hint": "微调提升对上下文的利用，RAG 注入实时知识。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["AI 大模型", "RAG", "微调", "高频"]
+    },
+    {
+      "title": "Embedding 模型是做什么的？如何评估和选择？",
+      "slug": "ai-llm-embedding-model",
+      "answerBrief": "Embedding 模型把文本映射为稠密向量，使语义相近的文本在向量空间距离近，是向量检索的基础。选型看语种支持、领域适配、向量维度、MTEB 榜单表现，以及是否支持指令/非对称检索。",
+      "answerDetail": "## 作用\n\nEmbedding 把句子/段落编码成定长向量，语义相似度近似为向量的余弦相似度，从而支持语义检索、聚类、去重等。\n\n## 选型要点\n\n| 维度 | 说明 |\n| --- | --- |\n| 语种 | 中文场景选中文或多语模型 |\n| 领域 | 通用 vs 法律/医疗等垂域，必要时微调 |\n| 维度 | 维度越高表达越强但存储检索更贵 |\n| 榜单 | 参考 MTEB/C-MTEB 检索任务得分 |\n| 非对称 | 短 query 检长 doc，需支持指令前缀 |\n\n## 评估方法\n\n```python\n# 用业务标注的 query-相关文档对算召回指标\n# Recall@k、MRR、NDCG\n```\n\n关键是用自己业务的标注数据评测，而非只看公开榜单。领域差异大时可在业务数据上对比学习微调 embedding，召回提升往往很明显。",
+      "followUps": [
+        { "question": "对称检索和非对称检索有什么区别？", "hint": "句对相似 vs 短查询匹配长文档，前缀指令不同。" },
+        { "question": "向量维度越高一定越好吗？", "hint": "表达更强但存储、检索成本和过拟合风险上升。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "RAG", "Embedding"]
+    },
+    {
+      "title": "向量数据库的近似最近邻检索是怎么实现的？HNSW 原理是什么？",
+      "slug": "ai-llm-vector-db-ann",
+      "answerBrief": "向量库用近似最近邻 ANN 算法在海量向量里快速找相似项，避免暴力全量比对。HNSW 构建多层可导航小世界图，从稀疏顶层贪心搜索逐层下沉到底层，实现对数级查询。",
+      "answerDetail": "## 为什么需要 ANN\n\n暴力检索要和每个向量算距离，亿级数据下不可行。ANN 用牺牲极小精度换取数量级的速度提升。\n\n## 主流索引\n\n| 索引 | 思路 | 特点 |\n| --- | --- | --- |\n| HNSW | 分层近邻图 | 高召回、低延迟，内存占用大 |\n| IVF | 倒排聚类分桶 | 省内存，需训练聚类中心 |\n| PQ | 乘积量化压缩 | 大幅省内存，精度有损 |\n\n实践常组合，如 IVF+PQ 兼顾内存与速度。\n\n## HNSW 原理\n\nHNSW 构建多层图：顶层节点稀疏、跳跃远；底层稠密、连接近邻。查询从顶层入口贪心走向更近的邻居，无法更近时下沉一层，最终在底层精搜。\n\n```\n顶层（远跳）→ 逐层下沉 → 底层（精搜）→ 返回 Top-k\n```\n\n查询复杂度约 O(log n)。关键参数 M（每节点连接数）和 efSearch（搜索宽度）权衡召回与速度。",
+      "followUps": [
+        { "question": "HNSW 的 efSearch 参数怎么调？", "hint": "增大提高召回但增加延迟，按召回目标权衡。" },
+        { "question": "什么时候选 IVF+PQ 而不是 HNSW？", "hint": "内存受限、超大规模、可接受精度损失时。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["AI 大模型", "RAG", "向量数据库"]
+    },
+    {
+      "title": "RAG 里的重排序（Rerank）是干什么的？为什么有了召回还要重排？",
+      "slug": "ai-llm-rerank",
+      "answerBrief": "重排用 Cross-Encoder 对召回的候选与 query 做精细打分，重新排序取最相关的 Top-K。召回用的双塔向量为了速度牺牲了精度，重排能弥补这一点，是 RAG 性价比最高的优化环节之一。",
+      "answerDetail": "## 召回 vs 重排\n\n| 阶段 | 模型 | 特点 |\n| --- | --- | --- |\n| 召回 | 双塔 Bi-Encoder | query/doc 各自编码，向量内积，快但粗 |\n| 重排 | 单塔 Cross-Encoder | query+doc 拼接同时编码，慢但准 |\n\n双塔为了能离线建索引，query 和 doc 不交互，精度有限；Cross-Encoder 让两者在注意力里充分交互，相关性判断更准，但无法预先建索引，只能对少量候选实时算。\n\n## 两阶段策略\n\n```\nquery → 召回 Top-50（快） → Rerank 精排 → 取 Top-5 → 拼上下文\n```\n\n## 价值\n\n- 召回放宽提高覆盖，重排保证最终送入 LLM 的片段最相关。\n- 直接减少噪声上下文，缓解幻觉、降低 token 成本。\n- 接入成本低、收益明显，是 RAG 调优的优先项。",
+      "followUps": [
+        { "question": "Cross-Encoder 为什么不能直接用来全量召回？", "hint": "无法离线建索引，实时全量算开销不可接受。" },
+        { "question": "重排候选数（Top-N）怎么定？", "hint": "权衡召回覆盖、重排延迟与最终上下文质量。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "RAG", "重排"]
+    },
+    {
+      "title": "如何评估一个 RAG 系统的好坏？有哪些指标和方法？",
+      "slug": "ai-llm-rag-evaluation",
+      "answerBrief": "RAG 评估分检索和生成两层。检索看 Recall@k、MRR、NDCG；生成看忠实度（是否基于上下文）、答案相关性、上下文相关性。常用 RAGAS 等框架结合 LLM-as-judge 自动评测。",
+      "answerDetail": "## 分层评估\n\n| 层 | 指标 | 含义 |\n| --- | --- | --- |\n| 检索 | Recall@k、MRR、NDCG | 正确片段是否被召回、排序是否靠前 |\n| 生成 | 忠实度 Faithfulness | 答案是否有上下文支撑、无臆造 |\n| 生成 | 答案相关性 | 答案是否切题 |\n| 生成 | 上下文精确率/召回率 | 检索片段与问题的匹配度 |\n\n## 评测方法\n\n- **离线标注集**：构造 query-答案-相关文档的黄金集，跑自动指标。\n- **LLM-as-judge**：用强模型按规则打分忠实度、相关性，RAGAS 等框架内置。\n- **人工抽检**：对高风险场景人工复核。\n\n```python\n# RAGAS 风格：对每条样本评 faithfulness / answer_relevancy / context_recall\n```\n\n## 实践建议\n\n先定位瓶颈：若检索 Recall 低，问题在切分/embedding/召回；若检索好但答案差，问题在生成提示或上下文噪声。分层归因才能对症优化。",
+      "followUps": [
+        { "question": "什么是 LLM-as-judge？它有什么偏差？", "hint": "用强模型打分，存在位置偏好、长度偏好等偏差。" },
+        { "question": "忠实度（faithfulness）低通常是什么原因？", "hint": "上下文噪声大、提示约束弱、模型自由发挥。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["AI 大模型", "RAG", "评估"]
+    },
+    {
+      "title": "什么是 Function Calling（工具调用）？它的执行流程是怎样的？",
+      "slug": "ai-llm-function-calling",
+      "answerBrief": "Function Calling 让模型按预定义的工具 schema 输出结构化调用参数，由外部执行真实函数再把结果回灌给模型。它把 LLM 从纯文本生成接到真实世界，是 Agent 调工具、查数据、执行动作的基础机制。",
+      "answerDetail": "## 执行流程\n\n```\n1. 开发者声明工具（名称、描述、参数 JSON Schema）\n2. 用户提问 + 工具列表 → 模型\n3. 模型判断需调用，输出工具名和参数（JSON）\n4. 应用执行函数，拿到真实结果\n5. 结果回灌模型 → 生成最终自然语言回答\n```\n\n## 工具定义示例\n\n```json\n{\n  \"name\": \"get_weather\",\n  \"description\": \"查询指定城市的实时天气\",\n  \"parameters\": {\n    \"type\": \"object\",\n    \"properties\": { \"city\": { \"type\": \"string\" } },\n    \"required\": [\"city\"]\n  }\n}\n```\n\n## 关键点\n\n- 模型只「决定调用什么、传什么参数」，真正执行在应用侧，安全可控。\n- 工具描述写得清晰是调用准确率的关键。\n- 支持并行调用多个工具、多轮链式调用。\n- 这是 Agent 与 MCP 协议的底层能力。",
+      "followUps": [
+        { "question": "工具描述写得不好会导致什么问题？", "hint": "模型选错工具、传错参数或该调不调。" },
+        { "question": "如何防止模型调用工具时传入危险参数？", "hint": "参数校验、白名单、权限隔离、人工确认。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["AI 大模型", "Agent", "Function Calling", "高频"]
+    },
+    {
+      "title": "ReAct 框架是什么？它解决了什么问题？",
+      "slug": "ai-llm-react-agent",
+      "answerBrief": "ReAct 让模型交替进行推理（Reasoning）和行动（Acting），按「思考-调用工具-观察结果」循环逐步解决问题。它把思维链和工具调用结合，缓解纯推理的幻觉，也让行动有依据，是 Agent 的经典范式。",
+      "answerDetail": "## 核心循环\n\nReAct = Reasoning + Acting，模型按以下循环迭代直到得出答案：\n\n```\nThought: 我需要先查 X\nAction: search(\"X\")\nObservation: 返回结果...\nThought: 还需要算 Y\nAction: calculate(...)\nObservation: ...\nThought: 信息足够了\nFinal Answer: ...\n```\n\n## 解决的问题\n\n- **纯 CoT 推理**会臆造事实（幻觉），无法获取外部实时信息。\n- **纯 Acting** 缺乏规划，盲目调工具。\n- ReAct 让推理指导行动、行动结果修正推理，二者互补。\n\n## 优缺点\n\n| 优点 | 缺点 |\n| --- | --- |\n| 可获取外部信息、可解释 | 多轮调用延迟与 token 成本高 |\n| 推理有据、减少幻觉 | 中间出错会沿轨迹放大 |\n\n实践中常配合反思（Reflexion）、错误重试、步数上限等机制提升鲁棒性。",
+      "followUps": [
+        { "question": "ReAct 的轨迹太长导致跑偏怎么办？", "hint": "限制步数、加反思纠错、压缩历史观察。" },
+        { "question": "ReAct 和单纯的思维链 CoT 有什么本质区别？", "hint": "ReAct 能与外部环境交互获取真实观察。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "Agent", "ReAct", "高频"]
+    },
+    {
+      "title": "一个 Agent 系统通常由哪些核心模块组成？",
+      "slug": "ai-llm-agent-components",
+      "answerBrief": "典型 Agent 由四部分组成：作为大脑的 LLM、规划模块（任务分解与反思）、记忆模块（短期上下文与长期向量记忆）、工具模块（调用外部能力）。LLM 负责决策，三者协同完成复杂任务闭环。",
+      "answerDetail": "## 四大模块\n\n| 模块 | 职责 |\n| --- | --- |\n| 大脑（LLM） | 理解、决策、生成 |\n| 规划 Planning | 目标分解、制定步骤、反思纠错 |\n| 记忆 Memory | 短期（对话上下文）+ 长期（向量库检索） |\n| 工具 Tools | 搜索、代码执行、API、数据库等 |\n\n## 协作闭环\n\n```\n感知任务 → 规划拆解 → 调用工具行动 → 观察结果\n  → 更新记忆 → 反思是否完成 → 继续或结束\n```\n\n## 各模块要点\n\n- **规划**：复杂任务先分解为子任务，CoT/ToT/Plan-and-Solve 等策略，配合反思修正。\n- **记忆**：短期记忆受上下文窗口限制，长期记忆把历史经验存入向量库按需检索。\n- **工具**：通过 Function Calling 接入，工具描述质量直接影响调用准确率。\n\n生产级 Agent 还需加入步数/成本上限、错误处理、人工介入（human-in-the-loop）等护栏。",
+      "followUps": [
+        { "question": "Agent 的短期记忆和长期记忆分别怎么实现？", "hint": "短期靠上下文窗口，长期靠向量检索召回。" },
+        { "question": "为什么 Agent 容易在多步任务中累积错误？", "hint": "每步误差沿轨迹传播放大，缺乏纠错机制。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "Agent"]
+    },
+    {
+      "title": "MCP（Model Context Protocol）协议解决了什么问题？",
+      "slug": "ai-llm-mcp-protocol",
+      "answerBrief": "MCP 是连接大模型与外部工具、数据源的开放标准协议，用统一的客户端-服务器接口替代各家私有的工具集成方式。一次实现的 MCP Server 可被任意兼容的客户端复用，解决 M×N 集成爆炸问题。",
+      "answerDetail": "## 要解决的问题\n\n过去每个应用接每个工具都要写私有适配，M 个应用 × N 个工具 = M×N 套集成。MCP 用标准协议把它降为 M+N。\n\n## 架构\n\n```\nHost（如 IDE/客户端） ── MCP Client ── MCP Server ── 真实资源\n                                         （文件/数据库/API）\n```\n\n## 三类能力\n\n| 原语 | 含义 |\n| --- | --- |\n| Tools | 可被模型调用的函数（带副作用） |\n| Resources | 可读取的上下文数据（文件、记录） |\n| Prompts | 预置的提示模板 |\n\n## 价值\n\n- **解耦与复用**：一个 MCP Server 写一次，所有支持 MCP 的客户端都能用。\n- **标准化**：统一发现、调用、鉴权方式。\n- **生态**：已有大量现成 Server（数据库、Git、浏览器等），即插即用。\n\nMCP 让 Agent 接外部能力从「定制开发」变成「装配标准组件」。",
+      "followUps": [
+        { "question": "MCP 的 Tools、Resources、Prompts 有什么区别？", "hint": "可执行动作 vs 可读数据 vs 提示模板。" },
+        { "question": "MCP 和普通 Function Calling 是什么关系？", "hint": "MCP 是标准化的工具接入层，底层仍是工具调用。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "Agent", "MCP", "高频"]
+    },
+    {
+      "title": "多智能体（Multi-Agent）系统适合什么场景？有哪些协作模式？",
+      "slug": "ai-llm-multi-agent",
+      "answerBrief": "多智能体把复杂任务拆给多个分工的 Agent 协作，适合需要不同角色、并行子任务或相互审查的场景。常见模式有主管编排、流水线串行、辩论/评审、群聊。代价是协调成本和上下文一致性难题。",
+      "answerDetail": "## 适用场景\n\n- 任务可分解为不同专业角色（如产品、编码、测试）。\n- 子任务可并行加速。\n- 需要交叉审查、辩论提升质量。\n\n## 常见协作模式\n\n| 模式 | 说明 |\n| --- | --- |\n| 主管编排 | Supervisor 分派任务给专家 Agent 并汇总 |\n| 流水线 | 角色串行接力，前者输出是后者输入 |\n| 辩论/评审 | 多 Agent 互相质疑、复核以提升正确性 |\n| 群聊协作 | 共享对话区，按规则发言协同 |\n\n## 权衡\n\n- **优点**：分工专注、可并行、可互查纠错。\n- **代价**：通信与编排开销大、上下文易不一致、调试困难、token 成本翻倍。\n\n## 实践建议\n\n不要为了用而用。单 Agent 加好工具能解决就别上多 Agent。只有当任务确实需要多角色协作或并行时再引入，并设计清晰的消息协议与终止条件。",
+      "followUps": [
+        { "question": "多智能体相比单智能体的主要代价是什么？", "hint": "编排复杂度、通信开销、上下文一致与成本。" },
+        { "question": "主管编排模式里如何避免任务分派死循环？", "hint": "设步数上限、明确终止条件、状态跟踪。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["AI 大模型", "Agent", "多智能体"]
+    },
+    {
+      "title": "大模型产生幻觉的根本原因是什么？有哪些缓解手段？",
+      "slug": "ai-llm-hallucination",
+      "answerBrief": "幻觉源于模型本质是按概率续写而非检索事实，训练目标只求流畅合理、不保证真实，加上知识过时和长尾稀疏。缓解靠 RAG 提供事实依据、提示约束、让模型表达不确定、事实校验与人工审核。",
+      "answerDetail": "## 根本原因\n\n- **生成机制**：模型按概率预测下一个 token，追求语言合理性而非事实正确性，会「自信地编造」。\n- **知识局限**：训练数据有截止时间，知识过时；长尾事实在语料中稀疏。\n- **对齐副作用**：RLHF 让模型倾向给出确定答案，不愿说「不知道」。\n\n## 缓解手段\n\n| 手段 | 作用 |\n| --- | --- |\n| RAG | 注入外部事实并要求依据回答 |\n| 提示约束 | 「仅根据上下文，不知道就说不知道」 |\n| 引用溯源 | 要求标注来源便于核验 |\n| 解码控制 | 降低 temperature 减少发散 |\n| 事实校验 | 二次校验/自一致性投票 |\n| 人工审核 | 高风险场景兜底 |\n\n## 关键认知\n\n幻觉无法被彻底消除，只能压低概率。生产系统应假设输出可能出错，用检索增强、可溯源和审核流程把风险控制在可接受范围。",
+      "followUps": [
+        { "question": "为什么 RLHF 反而可能加重模型不愿认错的倾向？", "hint": "偏好确定流畅回答，惩罚犹豫，鼓励自信输出。" },
+        { "question": "自一致性（self-consistency）怎么缓解幻觉？", "hint": "多次采样投票，取一致答案降低偶发错误。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "工程", "幻觉", "高频"]
+    },
+    {
+      "title": "常用的 Prompt 工程技巧有哪些？分别适合什么场景？",
+      "slug": "ai-llm-prompt-engineering",
+      "answerBrief": "常用技巧有清晰指令与角色设定、少样本 Few-shot 示例、思维链 CoT 引导推理、结构化输出约束、分隔符隔离上下文、拆解复杂任务。核心是减少歧义、给足上下文、引导推理过程。",
+      "answerDetail": "## 主要技巧\n\n| 技巧 | 适用场景 |\n| --- | --- |\n| 明确指令 + 角色 | 几乎所有任务，减少歧义 |\n| Few-shot 示例 | 格式/风格难描述时给样例 |\n| 思维链 CoT | 数学、推理、多步任务 |\n| 结构化输出 | 需要 JSON/表格便于解析 |\n| 分隔符 | 隔离指令与用户输入，防注入 |\n| 任务拆解 | 复杂任务分步骤逐个处理 |\n\n## 思维链示例\n\n```\n请一步步推理后再给出最终答案。\n先列出已知条件，再逐步计算，最后用「答案：」标注结论。\n```\n\n## 结构化输出\n\n```json\n{ \"sentiment\": \"positive\", \"confidence\": 0.9 }\n```\n\n## 经验\n\n- 把「要什么」「不要什么」「输出格式」写清楚。\n- 复杂任务先拆解再让模型逐步做，比一次性要求强。\n- 推理类任务加 CoT 提升显著，但简单任务不必滥用，徒增 token。",
+      "followUps": [
+        { "question": "Few-shot 示例数量是不是越多越好？", "hint": "占用上下文、可能引入偏置，质量与代表性更重要。" },
+        { "question": "怎么防止提示注入（prompt injection）？", "hint": "分隔用户输入、限定权限、输出校验、不信任外部内容。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["AI 大模型", "工程", "Prompt", "高频"]
+    },
+    {
+      "title": "思维链（Chain-of-Thought）为什么能提升模型推理能力？",
+      "slug": "ai-llm-chain-of-thought",
+      "answerBrief": "CoT 让模型把推理过程显式写出来，相当于把复杂问题拆成中间步骤，每步基于前文逐步逼近答案，给了模型更多「计算空间」。它对数学、逻辑等多步推理提升明显，但简单任务收益有限。",
+      "answerDetail": "## 原理\n\n模型逐 token 生成，直接出答案相当于一步算完复杂问题。CoT 让模型先输出中间推理步骤，把计算分摊到多个 token 上，后续步骤可参照前面的中间结论，降低单步难度。\n\n```\n问题 → 步骤1 → 步骤2 → ... → 结论\n```\n\n## 触发方式\n\n- **Zero-shot CoT**：加一句「让我们一步步思考」。\n- **Few-shot CoT**：示例里展示完整推理过程。\n- **结构化**：要求列条件、分步计算、标注答案。\n\n## 进阶变体\n\n| 方法 | 思路 |\n| --- | --- |\n| Self-Consistency | 多次采样投票取众数答案 |\n| Tree of Thoughts | 探索多条推理分支再择优 |\n| Least-to-Most | 由易到难逐级分解 |\n\n## 注意\n\n现代推理模型已把长链思考内化（如 reasoning 模型），简单任务上显式 CoT 收益不大且增加 token，应按任务难度取舍。",
+      "followUps": [
+        { "question": "Self-Consistency 相比单次 CoT 好在哪？", "hint": "多路径采样投票，抵消单次推理的偶发错误。" },
+        { "question": "推理模型（reasoning model）和加 CoT 提示有何不同？", "hint": "推理能力经训练内化，无需手动提示长链思考。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "工程", "CoT"]
+    },
+    {
+      "title": "模型量化是什么？INT8、INT4 量化对效果和性能有何影响？",
+      "slug": "ai-llm-quantization",
+      "answerBrief": "量化把模型权重/激活从 FP16 降到 INT8、INT4 等低精度，减小显存占用、提升推理吞吐。位数越低越省资源但精度损失越大，INT8 几乎无损，INT4 需 GPTQ/AWQ 等算法保质量。",
+      "answerDetail": "## 为什么量化\n\n大模型显存和带宽是瓶颈。FP16 每参数 2 字节，70B 模型需 140GB。量化到 INT4 可压到约四分之一，让模型跑在更小的卡上，且低精度计算更快。\n\n## 精度档位\n\n| 精度 | 显存 | 质量 | 说明 |\n| --- | --- | --- | --- |\n| FP16 | 基准 | 无损 | 训练/默认推理 |\n| INT8 | ~1/2 | 几乎无损 | 部署常用 |\n| INT4 | ~1/4 | 略降 | 需高级量化算法 |\n\n## 主流方法\n\n- **GPTQ**：逐层最小化量化误差，训练后量化。\n- **AWQ**：按激活分布保护重要权重通道。\n- **GGUF**：llama.cpp 生态的量化格式，CPU/端侧友好。\n\n## 权衡\n\n```\n位数越低 → 越省显存、越快 → 但精度损失越大\n```\n\n实践中 INT8 通常可放心用；INT4 配合 AWQ/GPTQ 在多数任务可接受，但对高精度需求或小模型要实测验证。",
+      "followUps": [
+        { "question": "GPTQ 和 AWQ 的核心区别是什么？", "hint": "误差最小化逐层量化 vs 按激活保护重要权重。" },
+        { "question": "为什么小模型量化的精度损失往往比大模型大？", "hint": "冗余少、容错低，低比特误差影响更明显。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "推理优化", "量化"]
+    },
+    {
+      "title": "vLLM 为什么能大幅提升推理吞吐？PagedAttention 是什么？",
+      "slug": "ai-llm-vllm-paged-attention",
+      "answerBrief": "vLLM 核心是 PagedAttention，借鉴操作系统分页把 KV Cache 切成固定大小的块按需分配，几乎消除显存碎片和预留浪费，从而支持更大 batch 和连续批处理，吞吐相比朴素实现大幅提升。",
+      "answerDetail": "## 传统 KV Cache 的问题\n\n朴素实现给每个请求按最大长度预留连续显存，导致：内部碎片（实际用不满）、外部碎片（连续块难分配）、无法共享。显存利用率往往很低。\n\n## PagedAttention\n\n借鉴操作系统虚拟内存分页：\n\n```\nKV Cache → 切成固定大小 block → 用块表映射逻辑块到物理块\n```\n\n- 按需分配块，几乎零浪费，显存利用率接近满。\n- 相同前缀（如共享系统提示）可在请求间共享物理块。\n- 配合 Copy-on-Write 支持并行采样。\n\n## 配套优化\n\n| 技术 | 作用 |\n| --- | --- |\n| 连续批处理 | 请求动态进出，GPU 不空转 |\n| 前缀缓存 | 复用公共前缀的 KV |\n| 张量并行 | 多卡切分大模型 |\n\n## 效果\n\n显存利用率提升让同卡能容纳更大 batch，配合连续批处理，整体吞吐相比朴素 HuggingFace 推理可提升数倍，是生产部署的主流引擎。",
+      "followUps": [
+        { "question": "连续批处理（continuous batching）解决了什么？", "hint": "静态批里短请求等长请求，GPU 利用率低。" },
+        { "question": "前缀缓存在什么场景收益最大？", "hint": "多请求共享长系统提示或公共上下文时。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["AI 大模型", "推理优化", "vLLM"]
+    },
+    {
+      "title": "如何评估一个大模型的能力？有哪些主流评测维度和方法？",
+      "slug": "ai-llm-model-evaluation",
+      "answerBrief": "评估分能力基准（知识、推理、代码、数学）、对齐质量（有用无害诚实）和业务指标三层。方法有标准化 Benchmark、人工/竞技场对战（Arena）、LLM-as-judge 自动评分，需结合业务场景定制评测集。",
+      "answerDetail": "## 评测维度\n\n| 维度 | 示例能力 |\n| --- | --- |\n| 知识 | 学科知识问答 |\n| 推理 | 逻辑、数学、多步推理 |\n| 代码 | 代码生成与修复 |\n| 对齐 | 有用、无害、诚实 |\n| 长文本 | 长上下文检索与理解 |\n\n## 主流方法\n\n- **标准 Benchmark**：固定题库自动评分，可比但易被「刷榜」和数据污染。\n- **竞技场对战**：人类盲评两模型输出，按 Elo 排名，更贴近真实偏好。\n- **LLM-as-judge**：用强模型按规则打分，规模化但有偏差。\n\n## 业务评测\n\n```\n构造业务场景测试集 → 定义评分规则 → 自动+人工评 → 持续回归\n```\n\n## 关键认知\n\n公开榜单存在数据泄漏、过拟合风险，分数高不代表业务好用。落地一定要用自己业务的标注集做评测和回归，关注真实任务表现而非排行榜名次。",
+      "followUps": [
+        { "question": "为什么不能只看公开 Benchmark 分数选模型？", "hint": "数据污染、刷榜、与业务分布不匹配。" },
+        { "question": "竞技场 Elo 评测有什么局限？", "hint": "偏好主观、易受输出长度/格式影响、覆盖有限。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "工程", "评估", "高频"]
+    },
+    {
+      "title": "上下文窗口是什么？长上下文面临哪些挑战？",
+      "slug": "ai-llm-context-window",
+      "answerBrief": "上下文窗口是模型单次能处理的最大 token 数，含输入和输出。长上下文面临注意力 O(n²) 算力与 KV Cache 显存暴涨、中间信息被忽略（lost in the middle）、成本上升等挑战。",
+      "answerDetail": "## 定义\n\n上下文窗口限制了一次对话能容纳的总 token（提示 + 历史 + 输出）。超出就要截断或压缩历史。\n\n## 长上下文的挑战\n\n| 挑战 | 说明 |\n| --- | --- |\n| 算力 | 注意力 O(n²)，长度翻倍计算翻四倍 |\n| 显存 | KV Cache 随长度线性增长 |\n| Lost in the middle | 模型更关注首尾，中间信息易被忽略 |\n| 成本 | 按 token 计费，长上下文更贵 |\n| 有效利用率 | 名义窗口大≠真正能用好全部内容 |\n\n## 扩窗技术\n\n- **位置插值**：PI、NTK-aware、YaRN 缩放 RoPE 扩展窗口。\n- **稀疏/滑窗注意力**：降低长序列计算。\n- **外部记忆**：超长内容交给 RAG 检索，而非全塞进窗口。\n\n## 实践建议\n\n窗口大不等于该塞满。把关键信息放首尾、压缩冗余、用检索按需召回，比无脑堆长上下文更有效且更省钱。",
+      "followUps": [
+        { "question": "「lost in the middle」现象如何缓解？", "hint": "关键信息放首尾、重排上下文、精简无关内容。" },
+        { "question": "有了超长上下文窗口，RAG 还有必要吗？", "hint": "成本、时效、可溯源、有效利用率仍使 RAG 有价值。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "工程", "上下文窗口", "高频"]
+    },
+    {
+      "title": "MoE（混合专家）模型是什么？相比稠密模型有什么优劣？",
+      "slug": "ai-llm-moe",
+      "answerBrief": "MoE 用多个专家子网络加一个路由器，每个 token 只激活少数专家，从而在总参数量很大的同时保持激活参数量小。优点是同等算力下容量更大、推理更快；缺点是显存占用高、训练负载均衡复杂。",
+      "answerDetail": "## 原理\n\nMoE 把 FFN 层替换为多个并行的专家网络和一个路由器。每个 token 由路由器选 Top-k 个专家处理，其余专家不激活。\n\n```\ntoken → Router 打分 → 选 Top-k 专家 → 加权聚合输出\n```\n\n## 稀疏激活\n\n关键在「总参数大、激活参数小」：模型可能有几千亿总参数，但每个 token 只过其中一小部分，计算量接近一个小得多的稠密模型。\n\n## 优劣对比\n\n| 维度 | MoE | 稠密 |\n| --- | --- | --- |\n| 同算力容量 | 大 | 小 |\n| 推理速度 | 快（稀疏激活） | 慢 |\n| 显存占用 | 高（全专家都要加载） | 低 |\n| 训练稳定性 | 难（需负载均衡） | 易 |\n\n## 工程挑战\n\n- **负载均衡**：避免少数专家被挤爆，需辅助负载均衡损失。\n- **通信开销**：专家分布多卡时路由通信成本高。\n\n现代多个旗舰大模型采用 MoE 架构平衡能力与推理成本。",
+      "followUps": [
+        { "question": "MoE 为什么需要负载均衡损失？", "hint": "防止路由坍缩到少数专家，其余专家训练不足。" },
+        { "question": "MoE 推理快但为什么部署门槛反而高？", "hint": "全部专家都要常驻显存，显存需求大。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["AI 大模型", "Transformer", "MoE"]
+    },
+    {
+      "title": "BERT 和 GPT 在结构和训练目标上有什么本质区别？",
+      "slug": "ai-llm-bert-vs-gpt",
+      "answerBrief": "BERT 是 Encoder-only，用掩码语言模型双向看上下文，擅长理解类任务；GPT 是 Decoder-only，用自回归单向预测下一个 token，擅长生成。前者编码理解，后者续写生成，训练目标和注意力方向不同。",
+      "answerDetail": "## 结构与目标对比\n\n| 维度 | BERT | GPT |\n| --- | --- | --- |\n| 架构 | Encoder-only | Decoder-only |\n| 注意力 | 双向 | 单向（因果掩码） |\n| 训练目标 | 掩码语言模型 MLM | 下一 token 预测 |\n| 擅长 | 分类、抽取、理解 | 生成、对话、续写 |\n\n## 训练目标差异\n\n- **BERT（MLM）**：随机遮盖部分 token，让模型用双向上下文还原，学到的是理解性表示，但不能直接生成。\n- **GPT（自回归）**：只能看到左侧上下文，逐 token 预测下一个词，天然适合生成。\n\n## 为什么主流转向 Decoder-only\n\n```\n生成式目标统一了理解与生成任务\n+ 更易 scaling、in-context learning 强\n→ GPT 范式成为大模型主流\n```\n\n双向理解任务也能用生成式模型通过提示完成，因此 Decoder-only 凭借通用性和扩展性胜出。",
+      "followUps": [
+        { "question": "为什么 BERT 不能直接用来做文本生成？", "hint": "双向 + 掩码目标，非自回归，无逐词生成机制。" },
+        { "question": "什么是 in-context learning？为什么 GPT 范式更强？", "hint": "靠提示中示例临时学习，无需更新参数。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["AI 大模型", "Transformer", "基础"]
+    },
+    {
+      "title": "微调大模型时如何做数据工程？高质量训练数据有哪些要点？",
+      "slug": "ai-llm-data-engineering",
+      "answerBrief": "数据工程包括采集清洗、去重、质量过滤、格式统一、配比设计。高质量 SFT 数据强调多样性、准确性、指令-回答对齐、难度梯度。少量精标数据通常优于大量噪声数据，数据质量直接决定微调上限。",
+      "answerDetail": "## 数据流水线\n\n```\n采集 → 清洗去噪 → 去重 → 质量过滤 → 格式标准化 → 配比混合 → 评估\n```\n\n## 质量要点\n\n| 维度 | 要求 |\n| --- | --- |\n| 准确性 | 答案正确、无事实错误 |\n| 多样性 | 任务类型、领域、表达方式覆盖广 |\n| 对齐 | 回答符合期望风格与格式 |\n| 难度梯度 | 简单到复杂分布合理 |\n| 去污染 | 剔除与评测集重叠的样本 |\n\n## 关键经验\n\n- **质量优先于数量**：几千条精标常胜过几十万条噪声，噪声会污染行为。\n- **去重很重要**：重复样本导致过拟合、浪费算力。\n- **配比设计**：多任务/多领域按目标能力配比，避免某类压倒其他。\n- **防数据泄漏**：训练集若混入测试题，评测虚高、上线翻车。\n\n现代也大量用强模型合成数据 + 人工校验，平衡成本与质量。",
+      "followUps": [
+        { "question": "用强模型合成训练数据有什么风险？", "hint": "继承教师模型偏差、错误，多样性受限，需校验。" },
+        { "question": "怎么判断 SFT 数据是不是足够多样？", "hint": "统计任务/领域分布、embedding 聚类查覆盖。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "训练", "数据工程"]
+    },
+    {
+      "title": "什么是涌现能力（Emergent Abilities）和 Scaling Law？",
+      "slug": "ai-llm-scaling-law",
+      "answerBrief": "Scaling Law 揭示模型性能随参数量、数据量、算力按幂律平滑提升。涌现能力指某些能力在模型规模超过临界点后突然出现，小模型几乎为零、大模型骤增，如复杂推理、少样本学习。",
+      "answerDetail": "## Scaling Law\n\n研究发现，在合理配置下，模型的损失随参数量 N、数据量 D、计算量 C 的增加按可预测的幂律下降：\n\n```\nLoss ∝ N^(-α)，D^(-β)，C^(-γ)\n```\n\n这让人们能在小规模实验后外推大模型表现，指导算力与数据如何最优分配（如 Chinchilla 提出参数与数据应同步扩展）。\n\n## 涌现能力\n\n部分能力并非平滑提升，而是在规模跨过某阈值后突然出现：\n\n| 现象 | 说明 |\n| --- | --- |\n| 少样本学习 | 大模型才会用上下文示例学习 |\n| 多步推理 | 小模型几乎做不对，大模型骤增 |\n| 指令遵循 | 规模足够才稳定听懂复杂指令 |\n\n## 争议与意义\n\n- 有研究认为「涌现」部分是评测指标非连续造成的视觉效果。\n- 但 Scaling 指导了「做大」的工程方向，也是预测训练投入产出的重要依据。\n\n现代趋势是数据质量、推理时计算（test-time compute）等成为新的 scaling 维度。",
+      "followUps": [
+        { "question": "Chinchilla 的结论对训练资源分配有何指导？", "hint": "给定算力，参数和数据量应按比例同步扩展。" },
+        { "question": "为什么有人质疑涌现能力是「测量假象」？", "hint": "非线性指标放大突变，换平滑指标曲线变连续。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["AI 大模型", "训练", "Scaling Law"]
+    },
+    {
+      "title": "为什么大模型用 Softmax 输出而采样而不总是取概率最大？",
+      "slug": "ai-llm-softmax-sampling",
+      "answerBrief": "Softmax 把 logits 转成概率分布。总取最大（贪心）会让输出确定但单调重复、缺乏多样性，且易陷入局部最优。采样按概率抽取，引入随机性使文本更自然多样，可控参数调节随机程度。",
+      "answerDetail": "## Softmax 的作用\n\n模型最后一层输出每个词的 logit，Softmax 把它们归一化成和为 1 的概率分布：\n\n```python\nprobs = exp(logits / T) / sum(exp(logits / T))\n```\n\n## 为什么不总取最大\n\n- **重复单调**：贪心每步选最高概率词，容易陷入重复循环、文本平淡。\n- **局部最优**：当前最优不等于整句最优，缺乏探索。\n- **缺多样性**：同一输入永远同样输出，不适合创意场景。\n\n## 采样的价值\n\n按概率分布抽样保留随机性，让低概率但合理的词也有机会出现，文本更自然、更多样。配合 temperature、top-p 控制随机强度。\n\n## 取舍\n\n| 任务 | 策略 |\n| --- | --- |\n| 代码/抽取/数学 | 近贪心（低温），要确定 |\n| 对话/写作 | 采样，要多样自然 |\n\n本质是确定性与多样性的权衡，按任务选择解码策略。",
+      "followUps": [
+        { "question": "贪心解码为什么容易出现重复输出？", "hint": "高概率词自我强化，陷入重复循环。" },
+        { "question": "temperature 趋近 0 时采样会变成什么？", "hint": "分布极度尖锐，退化为贪心解码。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["AI 大模型", "解码策略", "基础"]
+    },
+    {
+      "title": "如何把一个大模型应用从 Demo 推进到生产可用？要考虑哪些工程问题？",
+      "slug": "ai-llm-production-engineering",
+      "answerBrief": "生产化要解决稳定性（超时重试、降级兜底）、质量（评测回归、幻觉控制）、成本（缓存、模型分级、token 优化）、安全（提示注入、内容审核、权限）、可观测（日志、追踪、监控）等系统工程问题。",
+      "answerDetail": "## Demo 到生产的差距\n\nDemo 跑通只是开始，生产要面对真实流量、边界输入、成本与合规压力。\n\n## 核心工程关注点\n\n| 维度 | 要点 |\n| --- | --- |\n| 稳定性 | 超时重试、限流、降级兜底、幂等 |\n| 质量 | 评测集回归、幻觉与越界控制、A/B |\n| 成本 | 语义缓存、模型分级路由、压缩提示 |\n| 安全 | 提示注入防护、输入输出审核、权限隔离 |\n| 可观测 | 全链路日志、Trace、指标监控、告警 |\n| 延迟 | 流式输出、并行调用、就近部署 |\n\n## 成本优化示例\n\n```\n简单请求 → 小模型 / 缓存命中\n复杂请求 → 大模型\n→ 模型分级 + 缓存显著降本\n```\n\n## 关键认知\n\n大模型应用的不确定性要求把「会出错」作为前提来设计：加护栏、可回退、可观测、可灰度。工程化能力往往比模型本身更决定产品成败。",
+      "followUps": [
+        { "question": "语义缓存和普通缓存有什么区别？", "hint": "按语义相似命中而非精确匹配 key。" },
+        { "question": "如何给大模型应用做灰度发布和回滚？", "hint": "流量切分、影子流量、指标监控、快速回退。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "工程", "生产化", "高频"]
+    },
+    {
+      "title": "Token 是什么？为什么模型按 token 而不是按字或词处理文本？",
+      "slug": "ai-llm-tokenization",
+      "answerBrief": "Token 是模型处理文本的基本单位，由分词器把文本切成子词片段。用子词（BPE/BBPE）能在词表大小、未登录词覆盖和序列长度间取得平衡，既避免按字过长，也避免按词表爆炸和 OOV。",
+      "answerDetail": "## 什么是 Token\n\n模型不直接看字符，而是先用分词器（Tokenizer）把文本切成 token，再映射为 id 输入模型。一个 token 可能是一个词、半个词或几个字符。\n\n## 为什么用子词\n\n| 粒度 | 问题 |\n| --- | --- |\n| 按字符 | 序列太长，计算成本高 |\n| 按整词 | 词表巨大，且有大量未登录词 OOV |\n| 子词（BPE） | 折中：常见词整体、罕见词拆片，无 OOV |\n\n## BPE 原理\n\n```\n从字符开始，反复合并语料中最高频的相邻片段对，\n直到词表达到设定大小。\n```\n\n中文常用字节级 BBPE，对任意 UTF-8 字节都能编码，避免生僻字 OOV。\n\n## 工程影响\n\n- 计费、上下文长度都按 token 算，中文通常 1 字约 0.6~1 个 token。\n- 同样文本不同分词器 token 数不同，影响成本与窗口占用。\n- 数字、代码、罕见词可能被切得很碎，影响数学/精确处理能力。",
+      "followUps": [
+        { "question": "为什么大模型做多位数运算容易出错？", "hint": "数字被切成不规则 token，缺乏稳定数位对齐。" },
+        { "question": "字节级 BPE（BBPE）相比普通 BPE 好在哪？", "hint": "对任意字节编码，彻底消除 OOV，多语种友好。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["AI 大模型", "基础", "Tokenizer", "高频"]
+    },
+    {
+      "title": "如何让大模型稳定输出结构化数据（如 JSON）？有哪些方案？",
+      "slug": "ai-llm-structured-output",
+      "answerBrief": "方案有提示约束加 few-shot、Function Calling/工具 schema、JSON Mode、约束解码（grammar/正则约束生成）。提示法简单但不保证合法，约束解码和 JSON Mode 能从机制上保证输出符合 schema，生产更可靠。",
+      "answerDetail": "## 为什么难\n\n模型本质是概率生成，提示「输出 JSON」时仍可能多说话、漏引号、字段不全，下游解析失败。\n\n## 方案对比\n\n| 方案 | 可靠性 | 说明 |\n| --- | --- | --- |\n| 提示 + few-shot | 中 | 简单，但不保证合法 |\n| Function Calling | 高 | 按工具 schema 产出参数 |\n| JSON Mode | 高 | 强制输出合法 JSON |\n| 约束解码 | 最高 | 用语法/正则约束每步采样 |\n\n## 约束解码原理\n\n```\n生成每个 token 时，按 schema/语法 mask 掉非法 token，\n只在合法候选里采样 → 输出必然符合结构。\n```\n\n## 实践建议\n\n```json\n{ \"name\": \"string\", \"age\": 0, \"tags\": [\"string\"] }\n```\n\n- 优先用框架原生的结构化输出/JSON Schema 能力。\n- 仍要在解析层做校验和重试兜底。\n- 字段说明写清楚、给示例，能显著提升正确率。\n- 复杂嵌套结构可拆成多步生成降低出错率。",
+      "followUps": [
+        { "question": "约束解码会不会损害生成内容质量？", "hint": "过严语法可能限制表达，需平衡约束与自由度。" },
+        { "question": "即便用了 JSON Mode 为什么还要做解析兜底？", "hint": "语义字段可能仍不符预期，需校验与重试。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["AI 大模型", "工程", "结构化输出"]
+    },
+    {
+      "title": "投机解码（Speculative Decoding）是什么？为什么能加速推理而不损质量？",
+      "slug": "ai-llm-speculative-decoding",
+      "answerBrief": "投机解码用一个小的草稿模型快速猜测连续多个 token，再让大模型一次并行验证，接受匹配的前缀、丢弃错误部分。因为验证是并行的且接受准则保证分布等价，能在不改变输出分布的前提下提速。",
+      "answerDetail": "## 核心思想\n\n自回归逐 token 生成受限于串行，每步只出一个 token。投机解码让小模型先「抢答」几个 token，大模型并行验证：\n\n```\n草稿模型：连续猜 k 个 token（快）\n目标模型：一次前向并行验证这 k 个\n→ 接受匹配前缀，第一个不匹配处用目标模型采样纠正\n```\n\n## 为什么不损质量\n\n采用特定的接受/拒绝采样准则，使最终输出分布与直接用大模型采样在数学上等价。猜对就赚到加速，猜错就回退到正常解码，正确性不受影响。\n\n## 收益与前提\n\n| 维度 | 说明 |\n| --- | --- |\n| 加速来源 | 一次前向产出多个被接受 token |\n| 关键 | 草稿模型与目标模型一致性越高越快 |\n| 代价 | 多跑一个草稿模型，需平衡 |\n\n## 变体\n\n- **Medusa**：给模型加多个预测头，自身充当草稿。\n- **Lookahead / n-gram**：用无模型的草稿来源。\n\n在大 batch、计算受限场景收益可能下降，需结合部署实测。",
+      "followUps": [
+        { "question": "草稿模型选太大或太小分别有什么问题？", "hint": "太大草稿慢，太小接受率低，需权衡命中率与开销。" },
+        { "question": "为什么投机解码在大 batch 下收益可能变小？", "hint": "大 batch 本就计算密集，并行验证的相对优势下降。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["AI 大模型", "推理优化", "投机解码"]
+    }
+  ]
+}

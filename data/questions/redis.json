@@ -1,0 +1,468 @@
+{
+  "bank": {
+    "name": "Redis",
+    "slug": "redis",
+    "description": "数据结构 · 持久化 · 缓存三件套",
+    "icon": "⚡",
+    "category": "数据库",
+    "sortOrder": 5
+  },
+  "questions": [
+    {
+      "title": "Redis 的五种基本数据类型及各自适用场景？",
+      "slug": "redis-five-data-types",
+      "answerBrief": "String 存计数器、token、对象 JSON；List 做消息队列、最新列表；Hash 存对象字段；Set 做去重、交并集（共同好友）；ZSet 做排行榜、延迟队列。选型看读写模式与是否需要排序去重。",
+      "answerDetail": "## 五大类型与场景\n\n| 类型 | 底层编码 | 典型场景 |\n| --- | --- | --- |\n| String | int / embstr / raw | 计数器、分布式 ID、缓存对象、限流令牌 |\n| List | quicklist（listpack 节点） | 消息队列、最新动态列表、栈 |\n| Hash | listpack / hashtable | 存储对象的多个字段，购物车 |\n| Set | intset / hashtable | 去重、抽奖、共同好友（交集） |\n| ZSet | listpack / skiplist | 排行榜、延迟队列（score 存时间戳） |\n\n## 选型要点\n\n- 需要**字段级更新**用 Hash，整体读写用 String 存 JSON。\n- 需要**排序/范围查询**用 ZSet，`ZRANGEBYSCORE` 取区间。\n- 需要**去重和集合运算**用 Set。\n\n```bash\nZADD rank 100 alice 95 bob\nZREVRANGE rank 0 9 WITHSCORES   # Top10 排行榜\n```\n\n除五种基本类型外，Redis 还提供 Bitmap、HyperLogLog、GEO、Stream 等扩展类型。",
+      "followUps": [
+        { "question": "为什么大对象更推荐用 Hash 而不是 String 存 JSON？", "hint": "Hash 支持字段级读写，避免每次反序列化整个对象。" },
+        { "question": "ZSet 如何实现延迟队列？", "hint": "用到期时间戳作为 score，定时轮询 ZRANGEBYSCORE 取出到期任务。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Redis", "数据结构", "高频"]
+    },
+    {
+      "title": "Redis 为什么这么快？单线程为什么还能高性能？",
+      "slug": "redis-why-fast-single-thread",
+      "answerBrief": "纯内存操作；单线程避免锁竞争与上下文切换；基于 epoll 的 IO 多路复用一个线程管海量连接；高效的数据结构与编码。Redis 6 起网络 IO 多线程，但命令执行仍单线程。",
+      "answerDetail": "## 快的原因\n\n1. **纯内存**：所有数据在内存，读写是纳秒级。\n2. **单线程模型**：命令串行执行，无锁、无线程切换开销，避免竞态。\n3. **IO 多路复用**：基于 `epoll`（Linux）用一个线程监听大量 socket，就绪才处理。\n4. **高效数据结构**：SDS、跳表、listpack、渐进式 rehash 等针对性优化。\n\n## 单线程的边界\n\n- 「单线程」指**命令执行**单线程，保证了原子性。\n- Redis 6.0 起引入**网络 IO 多线程**，负责 read/write 与协议解析，命令执行仍由主线程串行完成。\n- 持久化（fork 子进程做 RDB/AOF rewrite）、异步删除（lazyfree）也是独立线程/进程。\n\n```bash\n# redis.conf 开启 IO 多线程\nio-threads 4\nio-threads-do-reads yes\n```\n\n## 注意\n\n单线程意味着一个慢命令（如 `KEYS *`、大 `HGETALL`）会阻塞整个实例，生产应避免。",
+      "followUps": [
+        { "question": "Redis 6 的多线程是命令也并发执行吗？", "hint": "不是，只有网络 IO 多线程，命令执行仍是单线程串行。" },
+        { "question": "为什么生产环境禁用 KEYS 命令？", "hint": "O(N) 全量遍历会阻塞单线程，应改用 SCAN 渐进遍历。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "单线程", "高频"]
+    },
+    {
+      "title": "Redis 的 IO 多路复用机制是怎么工作的？",
+      "slug": "redis-io-multiplexing",
+      "answerBrief": "Redis 用 epoll/kqueue 把多个 socket 注册到内核，单线程阻塞在事件循环上，内核通知哪些 fd 就绪就处理哪些，避免为每个连接开线程，实现一个线程支撑数万并发连接。",
+      "answerDetail": "## 核心思想\n\nIO 多路复用让**单个线程同时监听多个文件描述符**，只在有事件就绪时才处理，避免轮询和一连接一线程的开销。\n\n## Reactor 模型\n\nRedis 实现了基于 Reactor 模式的事件驱动框架（ae.c）：\n\n- **文件事件**：处理 socket 的读写（命令请求、响应）。\n- **时间事件**：处理定时任务（如定期删除过期键、`serverCron`）。\n\n## 多路复用 API\n\nRedis 按平台选择最优实现，优先级从高到低：\n\n| 平台 | API |\n| --- | --- |\n| Linux | epoll |\n| macOS/BSD | kqueue |\n| 通用兜底 | select |\n\n## 流程\n\n1. 服务端 socket 注册到事件循环监听连接事件。\n2. 新连接到来，为其 socket 注册读事件。\n3. 客户端发命令触发读事件，主线程读取并执行命令。\n4. 命令执行完注册写事件，将响应写回客户端。\n\n这样单线程也能轻松处理上万并发连接。",
+      "followUps": [
+        { "question": "epoll 相比 select 的优势是什么？", "hint": "select 每次 O(N) 拷贝并轮询全部 fd；epoll 用红黑树+就绪链表，只返回活跃 fd。" },
+        { "question": "Redis 的文件事件和时间事件谁优先？", "hint": "事件循环先处理文件事件，再处理已到期的时间事件。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "网络模型"]
+    },
+    {
+      "title": "SDS 是什么？相比 C 字符串有哪些优势？",
+      "slug": "redis-sds-vs-c-string",
+      "answerBrief": "SDS 是 Redis 的简单动态字符串，记录 len 和 alloc，使获取长度 O(1)、二进制安全、防缓冲区溢出，并通过空间预分配和惰性释放减少内存重分配次数。",
+      "answerDetail": "## SDS 结构\n\nSDS（Simple Dynamic String）头部记录已用长度、总容量和柔性数组：\n\n```\nstruct sdshdr {\n    int len;        // 已使用字节数\n    int alloc;      // 分配的总容量（不含头和结束符）\n    char buf[];     // 字节数组\n};\n```\n\n## 相比 C 字符串的优势\n\n| 维度 | C 字符串 | SDS |\n| --- | --- | --- |\n| 获取长度 | O(N) 遍历到 \\0 | O(1) 读 len |\n| 二进制安全 | 遇 \\0 截断 | 用 len 判断，可存任意字节 |\n| 缓冲区溢出 | strcat 易溢出 | 拼接前检查并扩容 |\n| 内存重分配 | 每次增删都要 | 空间预分配 + 惰性释放 |\n\n## 空间预分配\n\n字符串增长时，若新 len < 1MB 则额外多分配 len 大小的空间，≥1MB 则多分配 1MB，减少连续追加时的 realloc 次数。\n\nRedis 还根据长度用 sdshdr5/8/16/32/64 多种头部节省内存。",
+      "followUps": [
+        { "question": "什么是二进制安全，为什么 SDS 能做到？", "hint": "可存包含 \\0 的任意二进制数据，因为用 len 字段而非 \\0 判断结尾。" },
+        { "question": "惰性空间释放是什么？", "hint": "缩短字符串时不立即回收，用 alloc 记录留待复用，避免频繁重分配。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "底层编码"]
+    },
+    {
+      "title": "Redis 的 ziplist 为什么被 listpack 替代？",
+      "slug": "redis-ziplist-to-listpack",
+      "answerBrief": "ziplist 每个节点存前驱长度，连续更新可能引发连锁更新导致 O(N²) 性能抖动。Redis 7 用 listpack 取代，节点只记录自身长度、不依赖前驱，从根本上消除级联更新。",
+      "answerDetail": "## ziplist 的问题：连锁更新\n\nziplist 是一段连续内存的压缩列表，每个 entry 用 `prevlen` 记录前一节点长度（<254 用 1 字节，否则 5 字节）。\n\n当某个节点长度跨过 254 边界，会导致后一节点的 `prevlen` 从 1 字节变 5 字节，进而可能引发后续节点连锁扩容，最坏 **O(N²)**。\n\n## listpack 的改进\n\nRedis 7.0 全面用 **listpack** 替代 ziplist：\n\n- 每个 entry 只记录**自身长度**，不再记录前驱长度。\n- 从尾部反向遍历靠 entry 末尾的 backlen 实现，且 backlen 只依赖当前节点。\n- 彻底消除连锁更新，结构更简单。\n\n## 应用范围\n\n- Hash/ZSet/List 小数据量时的底层编码已从 ziplist 切换到 listpack。\n- List 的 quicklist 节点内部也由 ziplist 改为 listpack。\n\n```bash\nOBJECT ENCODING myhash   # 小数据返回 listpack\n```",
+      "followUps": [
+        { "question": "什么条件下 Hash 会从 listpack 转为 hashtable？", "hint": "字段数超过 hash-max-listpack-entries 或值长度超过 hash-max-listpack-value。" },
+        { "question": "连锁更新一定会发生吗？", "hint": "概率较低，需要恰好多个连续节点长度都在 254 边界附近。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Redis", "底层编码"]
+    },
+    {
+      "title": "ZSet 为什么用跳表而不用红黑树？",
+      "slug": "redis-zset-skiplist-vs-rbtree",
+      "answerBrief": "跳表实现简单、范围查询 ZRANGEBYSCORE 天然高效（链表顺序遍历），且并发与维护成本低于红黑树旋转。ZSet 实际是跳表+哈希表双结构，分别支撑范围查询和 O(1) 按成员查分。",
+      "answerDetail": "## ZSet 的双结构\n\n当元素较多时，ZSet 底层同时维护：\n\n- **跳表（skiplist）**：按 score 有序，支持范围查询、排名。\n- **哈希表（dict）**：member → score 映射，`ZSCORE` O(1)。\n\n## 为什么选跳表\n\n| 维度 | 跳表 | 红黑树 |\n| --- | --- | --- |\n| 范围查询 | 底层链表顺序遍历，天然高效 | 需中序遍历，实现复杂 |\n| 实现难度 | 简单，几十行 | 旋转/变色逻辑复杂 |\n| 平均复杂度 | 查找/插入 O(log N) | O(log N) |\n| 内存 | 多级指针，可调概率 | 每节点固定指针+颜色 |\n\n## 关键点\n\n- 跳表通过**概率**（默认 1/4）决定节点层数，期望层高 O(log N)。\n- `ZRANGEBYSCORE`、`ZRANK` 这类范围/排名操作正是跳表的强项。\n- 作者 antirez 也提到跳表更易实现和维护是选型的重要原因。\n\n小数据量时 ZSet 用 listpack，元素或值超过阈值才转为跳表。",
+      "followUps": [
+        { "question": "跳表的节点层数是怎么决定的？", "hint": "插入时按概率（默认 1/4）随机生成层高，不需要旋转再平衡。" },
+        { "question": "ZSet 既然有哈希表为什么还要跳表？", "hint": "哈希表无序，无法支持范围和排名查询，二者职责互补。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Redis", "底层编码", "高频"]
+    },
+    {
+      "title": "Redis 的渐进式 rehash 是怎么实现的？",
+      "slug": "redis-progressive-rehash",
+      "answerBrief": "扩容时同时保留 ht[0] 和 ht[1] 两张哈希表，每次增删改查顺带迁移一个桶，并配合定时任务分摊，避免一次性 rehash 海量 key 阻塞主线程。",
+      "answerDetail": "## 为什么需要渐进式\n\nRedis 字典在负载因子过高时要扩容（rehash），若一次性把百万级 key 全部搬到新表，单线程会被长时间阻塞。\n\n## 实现机制\n\n字典内有两张哈希表 `ht[0]`、`ht[1]` 和一个 `rehashidx` 游标：\n\n1. 开始 rehash 时为 `ht[1]` 分配空间，`rehashidx = 0`。\n2. 每次对字典做增删改查时，**顺带把 `ht[0]` 上 rehashidx 索引的桶迁移到 ht[1]**，然后 rehashidx++。\n3. 后台 `serverCron` 定时也会推进迁移。\n4. 全部迁移完，`ht[1]` 变 `ht[0]`，释放旧表，rehashidx 置 -1。\n\n## rehash 期间的读写\n\n- **查找**：先查 ht[0] 再查 ht[1]。\n- **新增**：一律写入 ht[1]，保证 ht[0] 只减不增，最终清空。\n- **删除/更新**：两张表都要操作。\n\n## 触发条件\n\n- 负载因子 ≥ 1 且未在执行 BGSAVE/BGREWRITEAOF 时扩容。\n- 负载因子 ≥ 5 强制扩容。\n- 负载因子 < 0.1 时缩容。",
+      "followUps": [
+        { "question": "rehash 期间新增的 key 写到哪张表？", "hint": "只写 ht[1]，保证 ht[0] 单调减少最终清空。" },
+        { "question": "为什么 BGSAVE 期间会尽量避免 rehash？", "hint": "子进程依赖写时复制，rehash 大量改动会触发页拷贝放大内存。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Redis", "底层编码"]
+    },
+    {
+      "title": "缓存穿透、击穿、雪崩分别是什么？如何解决？",
+      "slug": "redis-cache-three-problems",
+      "answerBrief": "穿透是查不存在的数据绕过缓存打到库，用布隆过滤器或缓存空值；击穿是热点 key 过期瞬间大量请求打库，用互斥锁或逻辑过期；雪崩是大量 key 同时失效，用过期时间加随机值、多级缓存与限流。",
+      "answerDetail": "## 三者对比\n\n| 问题 | 成因 | 解决方案 |\n| --- | --- | --- |\n| 穿透 | 查询**不存在**的数据，缓存不命中且库也没有 | 布隆过滤器拦截、缓存空值（短 TTL）、参数校验 |\n| 击穿 | 某个**热点 key 过期**瞬间大量并发打到库 | 互斥锁重建、逻辑过期不真删、热点永不过期 |\n| 雪崩 | **大量 key 同时失效**或 Redis 宕机 | 过期时间加随机值、多级缓存、限流降级、高可用集群 |\n\n## 穿透：布隆过滤器\n\n启动时把所有合法 key 灌入布隆过滤器，请求先过滤器，不存在直接返回。\n\n## 击穿：互斥锁\n\n```java\nString val = redis.get(key);\nif (val == null) {\n    if (redis.setnx(lockKey, \"1\", 10)) {   // 抢到锁才查库\n        val = db.query(key);\n        redis.setex(key, 1800, val);\n        redis.del(lockKey);\n    } else {\n        Thread.sleep(50);                   // 没抢到则重试读缓存\n        return get(key);\n    }\n}\n```\n\n## 雪崩：过期时间打散\n\n```java\nredis.setex(key, 1800 + new Random().nextInt(300), val); // 基础 30min + 随机\n```",
+      "followUps": [
+        { "question": "布隆过滤器为什么会误判？能删除元素吗？", "hint": "多哈希位共享导致假阳性；标准布隆不支持删除。" },
+        { "question": "逻辑过期方案的缺点是什么？", "hint": "短暂返回旧数据，一致性换可用性。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "缓存", "高频"]
+    },
+    {
+      "title": "如何保证缓存与数据库的一致性？",
+      "slug": "redis-cache-db-consistency",
+      "answerBrief": "推荐先更新数据库再删除缓存（Cache Aside）；并发下用延迟双删兜底；强一致可加分布式锁或订阅 binlog 异步删缓存。缓存本质是最终一致，强一致代价很高。",
+      "answerDetail": "## 主流方案：Cache Aside（旁路缓存）\n\n- **读**：先读缓存，命中返回；未命中查库并写回缓存。\n- **写**：先更新数据库，再**删除**缓存（而非更新缓存）。\n\n为什么删除而非更新缓存？避免并发写造成脏数据，也省去无人访问时的无效计算。\n\n## 为什么先更库再删缓存\n\n若先删缓存再更库，删缓存后到更库前，有读请求会把**旧值**重新写入缓存，造成长期不一致。\n\n## 并发下的延迟双删\n\n```java\nredis.del(key);            // 先删一次\ndb.update(data);           // 更新数据库\nThread.sleep(500);         // 等待并发读把旧值写入的窗口过去\nredis.del(key);            // 延迟再删一次\n```\n\n## 删除失败兜底\n\n- 消息队列重试删除。\n- **订阅 MySQL binlog**（如 Canal），库变更后异步删缓存，解耦且可靠。\n\n## 结论\n\n缓存方案是**最终一致**，追求强一致需加锁、串行化，代价大，需权衡业务容忍度。",
+      "followUps": [
+        { "question": "为什么写操作推荐删缓存而不是更新缓存？", "hint": "更新缓存在并发下可能写入旧值，删缓存让下次读时重建更安全。" },
+        { "question": "Canal 订阅 binlog 删缓存有什么好处？", "hint": "与业务代码解耦，保证库变更后缓存最终被清理，可靠且可重试。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "缓存", "高频"]
+    },
+    {
+      "title": "什么是热 key 和大 key？如何排查与治理？",
+      "slug": "redis-hot-key-big-key",
+      "answerBrief": "大 key 是单 key 体积或元素过多，导致内存不均、删除阻塞；热 key 是访问极集中打满单分片。大 key 拆分+渐进删除，热 key 用本地缓存+多副本打散。可用 --bigkeys、monitor、热点探测排查。",
+      "answerDetail": "## 大 key\n\n指 value 过大或集合元素过多的 key（如 String >10KB、Hash/Set 元素 >5000）。\n\n**危害**：内存倾斜、网络阻塞、`DEL` 同步删除阻塞主线程、迁移困难。\n\n**排查**：\n\n```bash\nredis-cli --bigkeys                 # 采样找各类型最大 key\nredis-cli --memkeys                 # 按内存采样\nMEMORY USAGE bigkey\n```\n\n**治理**：拆分为多个小 key（如大 Hash 按字段分片）；删除用 `UNLINK` 异步释放。\n\n## 热 key\n\n指访问量极度集中的 key，打满所在分片 CPU/网络。\n\n**排查**：\n\n```bash\nredis-cli --hotkeys                 # 需 LFU 策略\nredis-cli monitor                   # 抓实时命令（慎用，影响性能）\n```\n\n**治理**：\n\n- **本地缓存（多级缓存）**：在应用层加 Caffeine 兜热点。\n- **副本打散**：把热 key 复制成 key#1…key#N 分散到多个分片。\n- 读写分离，靠从节点分担读压力。",
+      "followUps": [
+        { "question": "为什么删除大 key 推荐用 UNLINK 而非 DEL？", "hint": "UNLINK 把内存回收交给后台线程异步执行，避免阻塞主线程。" },
+        { "question": "热 key 用本地缓存有什么副作用？", "hint": "引入多级缓存一致性问题，需要短 TTL 或失效广播。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "缓存", "高频"]
+    },
+    {
+      "title": "RDB 和 AOF 持久化的原理与区别？",
+      "slug": "redis-rdb-vs-aof",
+      "answerBrief": "RDB 是某时刻全量数据的二进制快照，体积小、恢复快、可能丢最后一次快照后的数据；AOF 记录每条写命令的日志，丢数据少但文件大、恢复慢。生产常用混合持久化兼顾二者。",
+      "answerDetail": "## RDB：内存快照\n\n通过 `SAVE`（阻塞）或 `BGSAVE`（fork 子进程）把某时刻全量数据写成压缩二进制文件 `dump.rdb`。\n\n- 优点：体积小、恢复快、适合备份和灾难恢复。\n- 缺点：快照间隔内宕机会**丢数据**；fork 大实例有瞬时开销。\n\n## AOF：命令日志\n\n以追加方式记录每条**写命令**（RESP 协议文本），重启时重放还原数据。\n\n- 刷盘策略 `appendfsync`：\n  - `always`：每条都刷盘，最安全最慢。\n  - `everysec`：每秒刷一次，**默认**，最多丢 1 秒。\n  - `no`：交给操作系统，最快最不安全。\n- 优点：丢数据少、可读。\n- 缺点：文件大、恢复慢，需定期 rewrite 压缩。\n\n## 对比\n\n| 维度 | RDB | AOF |\n| --- | --- | --- |\n| 数据安全 | 易丢数据 | 丢得少 |\n| 文件体积 | 小 | 大 |\n| 恢复速度 | 快 | 慢 |\n| 对性能影响 | fork 瞬时 | 持续写盘 |\n\n## 选择\n\n生产常**同时开启**，靠 AOF 保证数据安全、RDB 做快速恢复，配合混合持久化。",
+      "followUps": [
+        { "question": "appendfsync everysec 最多丢多少数据？", "hint": "约 1 秒内的写命令，取决于后台 fsync 线程进度。" },
+        { "question": "BGSAVE 期间产生的新写命令会写进快照吗？", "hint": "不会，子进程基于 fork 时刻的内存，靠写时复制保持一致。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "持久化", "高频"]
+    },
+    {
+      "title": "什么是 AOF 重写？为什么需要？",
+      "slug": "redis-aof-rewrite",
+      "answerBrief": "AOF 持续追加会越来越大，重写是用当前内存数据生成一份等价但更精简的命令集替换旧日志。由 BGREWRITEAOF fork 子进程完成，期间新命令写入重写缓冲区最后合并。",
+      "answerDetail": "## 为什么要重写\n\nAOF 记录每条写命令，对同一个 key 反复 `INCR`、`SET` 会留下大量冗余记录，文件无限膨胀，恢复变慢。\n\n## 重写原理\n\n重写**不是读旧 AOF**，而是直接根据**当前内存中的数据状态**，生成能重建该状态的最少命令集。例如一个 list 有 100 个元素，直接写成一条 `RPUSH key a b c …`。\n\n## 执行流程（BGREWRITEAOF）\n\n1. 主进程 `fork` 出子进程，子进程根据内存数据写新 AOF。\n2. fork 后主进程继续处理命令，新写命令同时写入：\n   - 原 AOF 缓冲区（保证旧文件完整）。\n   - **AOF 重写缓冲区**。\n3. 子进程写完后通知主进程，主进程把重写缓冲区的增量追加到新 AOF。\n4. 用新 AOF 替换旧文件。\n\n## 触发\n\n```bash\nauto-aof-rewrite-percentage 100   # 比上次大一倍触发\nauto-aof-rewrite-min-size 64mb    # 且至少 64MB\n```\n\n也可手动执行 `BGREWRITEAOF`。",
+      "followUps": [
+        { "question": "AOF 重写缓冲区的作用是什么？", "hint": "保存重写期间的新写命令增量，写完后追加到新 AOF 保证不丢数据。" },
+        { "question": "重写是基于旧 AOF 还是内存数据？", "hint": "基于当前内存数据生成最简命令集，与旧文件大小无关。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "持久化"]
+    },
+    {
+      "title": "Redis 4.0 的混合持久化是什么？",
+      "slug": "redis-mixed-persistence",
+      "answerBrief": "混合持久化让 AOF 重写时，文件前半段用 RDB 二进制全量快照，后半段追加增量命令。兼顾 RDB 恢复快和 AOF 丢数据少的优点，是生产推荐配置。",
+      "answerDetail": "## 背景\n\n- 纯 RDB：恢复快但易丢数据。\n- 纯 AOF：丢数据少但文件大、恢复慢（要逐条重放）。\n\nRedis 4.0 引入**混合持久化**，结合两者优点。\n\n## 工作方式\n\n开启后，AOF **重写**时生成的新文件结构为：\n\n```\n[ RDB 格式的全量数据快照 ] + [ 重写期间产生的增量 AOF 命令 ]\n```\n\n- 前半段是 RDB 二进制，恢复时直接加载，**速度快**。\n- 后半段是增量写命令文本，保证**丢数据少**。\n\n## 开启配置\n\n```bash\naof-use-rdb-preamble yes   # Redis 7 默认开启\n```\n\n## 恢复流程\n\n重启加载 AOF 时，先识别开头的 RDB 部分快速载入，再重放后面的增量命令，最终得到完整数据。\n\n## 优劣\n\n- 优点：恢复快 + 丢数据少。\n- 缺点：AOF 前半段是二进制，**可读性变差**，且只在 4.0+ 兼容。",
+      "followUps": [
+        { "question": "混合持久化的 AOF 文件可读性如何？", "hint": "前半段 RDB 是二进制不可读，后半段增量命令仍是文本。" },
+        { "question": "混合持久化下重启加载顺序是怎样的？", "hint": "先加载开头的 RDB 快照，再重放后面的增量 AOF 命令。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Redis", "持久化"]
+    },
+    {
+      "title": "Redis 的过期键删除策略有哪些？",
+      "slug": "redis-expire-deletion-strategy",
+      "answerBrief": "Redis 用惰性删除加定期删除：访问 key 时发现过期才删（惰性，省 CPU 但占内存）；后台定时随机抽样删除部分过期 key（定期，平衡 CPU 与内存）。二者配合避免内存堆积。",
+      "answerDetail": "## 三种理论策略\n\n| 策略 | 说明 | 缺点 |\n| --- | --- | --- |\n| 定时删除 | 设置过期时立即起定时器 | 占用大量 CPU |\n| 惰性删除 | 访问时才检查删除 | 不访问则永驻内存 |\n| 定期删除 | 周期性抽样删除 | 参数需权衡 |\n\nRedis 实际采用**惰性删除 + 定期删除**组合。\n\n## 惰性删除\n\n读写 key 时先检查是否过期，过期则删除并返回空。优点省 CPU，缺点是冷数据可能长期不被访问而占内存。\n\n## 定期删除\n\n`serverCron` 默认每秒运行 10 次（`hz` 控制），每次从设置了过期时间的 key 中**随机抽样**一批：\n\n- 删除其中已过期的。\n- 若抽样中过期比例超过 25%，继续循环抽样，直到比例降下来或超时。\n\n## 配合内存淘汰\n\n即便如此仍可能漏删，最终由**内存淘汰策略**在内存不足时兜底回收。\n\n## 注意\n\n主从架构下，从节点不主动删除过期 key，等主节点删除后同步 DEL 命令，保证数据一致。",
+      "followUps": [
+        { "question": "从节点会主动删除过期 key 吗？", "hint": "不会，从节点等主节点发来 DEL 命令再删，保证主从一致。" },
+        { "question": "为什么不用定时删除？", "hint": "每个 key 一个定时器会消耗大量 CPU，影响命令吞吐。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "过期淘汰", "高频"]
+    },
+    {
+      "title": "Redis 的内存淘汰策略有哪八种？",
+      "slug": "redis-eviction-policies",
+      "answerBrief": "内存满时按 maxmemory-policy 淘汰：noeviction 报错；volatile/allkeys 各配 lru、lfu、random，外加 volatile-ttl。生产常用 allkeys-lru 或 allkeys-lfu 做缓存。",
+      "answerDetail": "## 触发时机\n\n当内存使用达到 `maxmemory` 时，根据 `maxmemory-policy` 选择 key 淘汰。\n\n## 八种策略\n\n| 策略 | 候选范围 | 规则 |\n| --- | --- | --- |\n| noeviction | 不淘汰 | 写命令直接报错（默认） |\n| volatile-lru | 设了过期 | 淘汰最久未用 |\n| allkeys-lru | 所有 key | 淘汰最久未用 |\n| volatile-lfu | 设了过期 | 淘汰最少使用 |\n| allkeys-lfu | 所有 key | 淘汰最少使用 |\n| volatile-random | 设了过期 | 随机淘汰 |\n| allkeys-random | 所有 key | 随机淘汰 |\n| volatile-ttl | 设了过期 | 淘汰剩余存活时间最短的 |\n\n## LRU vs LFU\n\n- **LRU**（最近最少使用）：看最后访问时间，可能误淘汰偶发热点。\n- **LFU**（最不经常使用）：看访问频率，4.0 引入，更适合区分真热点与偶发访问。\n\nRedis 的 LRU 是**近似 LRU**（随机采样比较），不维护全量链表，省内存。\n\n## 选型\n\n纯缓存场景常用 `allkeys-lru` / `allkeys-lfu`；区分持久数据与缓存可用 volatile 系列。",
+      "followUps": [
+        { "question": "Redis 的 LRU 是精确的吗？", "hint": "是近似 LRU，随机采样若干 key 比较空闲时间，不维护全局链表。" },
+        { "question": "LFU 如何避免老热点长期不被淘汰？", "hint": "计数器随时间衰减（decay），让历史高频但近期不用的 key 频率下降。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "过期淘汰", "高频"]
+    },
+    {
+      "title": "Redis 设置了过期时间的 key 一定会准时删除吗？",
+      "slug": "redis-expire-not-precise",
+      "answerBrief": "不会。Redis 靠惰性删除和定期删除，过期 key 可能在到期后仍残留一段时间：不被访问且没被抽样到就不删，直到内存淘汰兜底。但读取时一定返回过期（逻辑上已失效）。",
+      "answerDetail": "## 结论\n\n过期 key **不保证物理上准时删除**，但**逻辑上一定失效**——访问时一定拿不到。\n\n## 原因\n\nRedis 没有为每个 key 起定时器（太耗 CPU），而是：\n\n1. **惰性删除**：访问 key 时检查过期才删。冷 key 不被访问就一直占内存。\n2. **定期删除**：随机抽样删，没抽到的过期 key 会暂时残留。\n\n所以一个过期 key 可能在到期后仍在内存里存在一段时间。\n\n## 不影响正确性\n\n```bash\nSET k v EX 1\n# 1 秒后\nGET k        # 返回 nil（惰性删除触发，逻辑上已过期）\n```\n\n即便 key 物理还在，`GET` 时也会先判断过期返回 nil 并删除，所以业务读不到脏数据。\n\n## 内存层面的兜底\n\n大量过期 key 残留占内存时，由内存淘汰策略在 `maxmemory` 触发时回收。\n\n## 主从一致\n\n从节点即使本地 key 已逻辑过期也不主动删，统一等主节点的 DEL 同步，避免主从读到不一致。",
+      "followUps": [
+        { "question": "过期 key 还没被删除时占用内存怎么办？", "hint": "靠定期删除持续清理，内存不足时由淘汰策略兜底回收。" },
+        { "question": "key 已物理过期但未删除时 GET 会读到旧值吗？", "hint": "不会，GET 会先判断过期返回 nil 并触发惰性删除。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Redis", "过期淘汰"]
+    },
+    {
+      "title": "如何用 Redis 实现分布式锁？SETNX 方案有什么坑？",
+      "slug": "redis-distributed-lock-setnx",
+      "answerBrief": "用 SET key val NX EX 原子加锁，value 存唯一标识，释放时用 Lua 比对再删。坑在于锁过期但业务没执行完导致误删他人锁，需看门狗续期，生产推荐 Redisson。",
+      "answerDetail": "## 基础方案\n\n用一条原子命令加锁，避免 setnx 与 expire 分两步导致的中途宕机死锁：\n\n```bash\nSET lock_key unique_id NX EX 30\n```\n\n- `NX`：key 不存在才设置（互斥）。\n- `EX 30`：设置过期，防止持锁者宕机死锁。\n- `unique_id`：唯一标识（如 UUID），用于安全释放。\n\n## 安全释放：Lua 保证原子\n\n```python\n# 先比对再删，避免删掉别人的锁\nlua = \"\"\"\nif redis.call('get', KEYS[1]) == ARGV[1] then\n    return redis.call('del', KEYS[1])\nelse\n    return 0\nend\n\"\"\"\nredis.eval(lua, 1, lock_key, unique_id)\n```\n\n## 主要坑点\n\n1. **误删他人锁**：A 的锁超时被释放，B 拿到锁，A 业务执行完直接 del 会删掉 B 的锁。靠 value 比对 + Lua 解决。\n2. **业务超时**：业务没执行完锁就过期。需要**看门狗（watchdog）自动续期**。\n3. **主从切换丢锁**：主节点写入锁后未同步就宕机，从节点升主后锁丢失。\n\n## 生产推荐 Redisson\n\nRedisson 封装了可重入锁、看门狗续期（默认 30s，每 10s 续）、RedLock 等，避免手写踩坑。",
+      "followUps": [
+        { "question": "释放锁为什么必须用 Lua 脚本？", "hint": "get 比对和 del 必须原子执行，否则比对后、删除前锁可能已过期被他人持有。" },
+        { "question": "看门狗续期的原理是什么？", "hint": "后台定时任务在锁未释放时周期性重置过期时间，业务做完才停止续期。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "分布式锁", "高频"]
+    },
+    {
+      "title": "RedLock 红锁算法是什么？它真的可靠吗？",
+      "slug": "redis-redlock-algorithm",
+      "answerBrief": "RedLock 向多个独立 Redis 主节点依次加锁，半数以上成功且总耗时小于锁有效期才算成功。它解决单点主从切换丢锁，但因依赖时钟假设存在争议，分布式专家 Martin Kleppmann 曾质疑其安全性。",
+      "answerDetail": "## 为什么需要 RedLock\n\n单实例分布式锁在**主从切换**时不安全：主节点写入锁后未同步给从就宕机，从升主后锁丢失，两个客户端可能同时持锁。\n\n## RedLock 步骤\n\n部署 N 个（通常 5 个）相互独立的 Redis 主节点（无主从），客户端：\n\n1. 获取当前毫秒时间戳。\n2. 依次向 N 个节点用相同 key、随机 value、相同超时加锁。\n3. 统计成功节点数与总耗时。\n4. **当且仅当**成功节点 ≥ N/2+1 **且** 总耗时 < 锁有效期，才算加锁成功，有效期减去耗时。\n5. 失败则向所有节点发释放请求。\n\n## 争议\n\n分布式专家 **Martin Kleppmann** 质疑：\n\n- 算法依赖**各节点时钟相对一致**，时钟跳变会破坏安全性。\n- GC、网络延迟导致的进程暂停可能使锁失效后仍误以为持有，需配合 **fencing token**（单调递增令牌）。\n\nantirez 做了回应，社区至今有分歧。\n\n## 实践\n\n多数业务对一致性要求没那么极端，用单实例 + Redisson 看门狗已够；强一致建议用 ZooKeeper/etcd 等 CP 方案。",
+      "followUps": [
+        { "question": "fencing token 是怎么解决锁失效问题的？", "hint": "每次加锁返回单调递增令牌，存储端校验拒绝旧令牌的写入。" },
+        { "question": "为什么强一致场景更推荐 ZooKeeper？", "hint": "ZooKeeper 基于 ZAB 是 CP 模型，临时顺序节点+watch 天然适合锁，不依赖时钟。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Redis", "分布式锁"]
+    },
+    {
+      "title": "Redis 主从复制的原理是什么？",
+      "slug": "redis-master-slave-replication",
+      "answerBrief": "从节点首次同步触发全量复制：主节点 BGSAVE 生成 RDB 发给从并缓冲期间新命令，之后转为命令传播增量同步。断线重连用 PSYNC 凭复制偏移量和积压缓冲区尽量做部分重同步。",
+      "answerDetail": "## 复制流程\n\n从节点执行 `REPLICAOF master_ip port` 后建立复制关系，分三个阶段。\n\n### 1. 全量复制（首次同步）\n\n1. 从节点发送 `PSYNC ? -1`。\n2. 主节点执行 `BGSAVE` 生成 RDB，期间新写命令存入**复制缓冲区**。\n3. 主节点把 RDB 发给从节点，从节点清空旧数据并加载。\n4. 主节点把复制缓冲区里的增量命令补发给从节点。\n\n### 2. 命令传播（增量）\n\n全量后，主节点把每条写命令**异步**实时转发给从节点，保持数据同步。\n\n### 3. 断线重连：部分重同步\n\nRedis 2.8 起用 `PSYNC` 支持部分重同步：\n\n- 主节点维护一个**复制积压缓冲区**（ring buffer）和**复制偏移量**。\n- 从节点重连时带上自己的 offset 和主节点 `runid`。\n- 若 offset 仍在积压缓冲区内，只补发缺失部分，否则退化为全量复制。\n\n## 特点\n\n- 复制是**异步**的，主从可能短暂不一致（最终一致）。\n- 主节点可读写，从节点默认只读，可做读写分离分担读压力。",
+      "followUps": [
+        { "question": "复制积压缓冲区太小会有什么问题？", "hint": "断线稍久 offset 就滑出缓冲区，被迫触发代价高的全量复制。" },
+        { "question": "主从复制是同步还是异步？有何影响？", "hint": "异步，主节点写完即返回，主宕机时未同步的数据可能丢失。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "主从复制", "高频"]
+    },
+    {
+      "title": "Redis 哨兵（Sentinel）是如何实现高可用的？",
+      "slug": "redis-sentinel-high-availability",
+      "answerBrief": "哨兵集群监控主从节点，主观下线后经多数哨兵确认变客观下线，由 Raft 选出领头哨兵执行故障转移：选最优从节点升主，其余从改指向新主，并通知客户端新地址。",
+      "answerDetail": "## 哨兵的职责\n\nSentinel 是独立进程集群，负责：\n\n- **监控**：定期 PING 主从节点和其他哨兵。\n- **通知**：节点异常时告警。\n- **自动故障转移**：主节点挂了自动选新主。\n- **配置提供**：客户端连哨兵获取当前主节点地址。\n\n## 下线判定\n\n- **主观下线（SDOWN）**：单个哨兵在 `down-after-milliseconds` 内 PING 不通某节点。\n- **客观下线（ODOWN）**：足够多哨兵（达到 `quorum`）都认为主节点主观下线，才确认客观下线。\n\n## 故障转移流程\n\n1. 确认主节点客观下线。\n2. 哨兵间用 **Raft** 算法选举出一个**领头哨兵**执行转移。\n3. 领头哨兵从从节点中挑选最优者（优先级、复制偏移量、runid）升为新主。\n4. 让其他从节点 `REPLICAOF` 新主。\n5. 把旧主标记为从，恢复后让它跟随新主。\n6. 通过发布订阅通知客户端新主地址。\n\n## 部署建议\n\n哨兵数量为**奇数且≥3**，分散在不同机器，避免单点和脑裂。",
+      "followUps": [
+        { "question": "主观下线和客观下线的区别？", "hint": "主观是单个哨兵的判断，客观是达到 quorum 个哨兵共同确认。" },
+        { "question": "选新主时哨兵依据哪些因素？", "hint": "依次看从节点优先级、复制偏移量（数据最新）、runid 最小。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "高可用", "高频"]
+    },
+    {
+      "title": "Redis Cluster 的数据分片原理是什么？为什么是 16384 个槽？",
+      "slug": "redis-cluster-hash-slot",
+      "answerBrief": "Cluster 把键空间分成 16384 个哈希槽，对 key 做 CRC16 取模定位槽，槽分配到各主节点。16384 是在心跳包带宽和集群规模间的权衡，节点间用 Gossip 协议同步槽映射。",
+      "answerDetail": "## 分片机制\n\nRedis Cluster 不用一致性哈希，而用**固定 16384 个哈希槽（slot）**：\n\n```\nslot = CRC16(key) % 16384\n```\n\n每个主节点负责一部分槽，key 落到哪个槽就由哪个节点处理。\n\n## 为什么是 16384\n\n作者 antirez 的解释：\n\n1. 节点间心跳包要携带**槽位图（bitmap）**，16384 位 = 2KB，若用 65536 则 8KB，心跳带宽浪费大。\n2. Redis 集群一般**不超过 1000 个节点**，16384 个槽足够均匀分配。\n\n## 节点间通信：Gossip\n\n节点用 Gossip 协议交换彼此负责的槽和状态信息，最终每个节点都知道完整的槽-节点映射。\n\n## 重定向\n\n客户端请求 key 时，若槽不在当前节点：\n\n- 返回 **MOVED**：槽已迁移到别的节点，客户端更新缓存并重定向。\n- 返回 **ASK**：槽正在迁移中的临时重定向。\n\n## hash tag\n\n用 `{}` 包裹 key 的一部分，只对花括号内内容算槽，可让多个 key 落同一槽支持多键操作：\n\n```bash\nMSET {user1}:name tom {user1}:age 20   # 同一个槽\n```",
+      "followUps": [
+        { "question": "MOVED 和 ASK 重定向有什么区别？", "hint": "MOVED 表示槽已永久迁移需更新映射；ASK 是迁移过程中的一次性临时重定向。" },
+        { "question": "为什么 Cluster 不直接用一致性哈希？", "hint": "固定槽便于精确迁移和管理，扩缩容时按槽搬迁更可控。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Redis", "Cluster", "高频"]
+    },
+    {
+      "title": "Redis Cluster 扩容时如何迁移数据？会停机吗？",
+      "slug": "redis-cluster-resharding",
+      "answerBrief": "扩容时把部分槽重新分配给新节点，按槽逐 key 迁移。迁移中源节点对未迁走的 key 正常服务、已迁走的返回 ASK 重定向，整个过程在线无需停机。",
+      "answerDetail": "## 扩容流程\n\n新增节点后，需要把部分**哈希槽**从旧节点搬到新节点（reshard）：\n\n```bash\nredis-cli --cluster reshard <host>:<port>\n```\n\n## 槽迁移的细节\n\n迁移以**槽**为单位，槽内逐个 key 搬运：\n\n1. 目标节点标记该槽为 `IMPORTING`。\n2. 源节点标记该槽为 `MIGRATING`。\n3. 源节点用 `MIGRATE` 命令把 key 原子搬到目标节点。\n4. 全部 key 迁完，更新集群的槽-节点映射并广播。\n\n## 迁移期间如何不停机\n\n对正在迁移的槽：\n\n- 请求的 key **还在源节点**：源节点正常处理。\n- 请求的 key **已迁到目标节点**：源节点返回 **ASK** 重定向，客户端发 `ASKING` 后到目标节点取。\n\n因此整个扩容**在线进行，无需停机**，对客户端基本透明（依赖客户端支持重定向）。\n\n## 缩容\n\n反向操作：先把待下线节点的槽迁到其他节点，槽清空后再下线该节点。\n\n## 注意\n\n大规模迁移会增加网络和 CPU 压力，建议低峰期分批进行。",
+      "followUps": [
+        { "question": "迁移中的槽收到请求时怎么保证不丢数据？", "hint": "已迁走的 key 用 ASK 临时重定向到目标节点，未迁的仍由源节点服务。" },
+        { "question": "MIGRATE 命令是原子的吗？", "hint": "是，单 key 迁移在源删除和目标写入间原子完成，避免中间态。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Redis", "Cluster"]
+    },
+    {
+      "title": "Redis 的 Pipeline（管道）是什么？能用来做事务吗？",
+      "slug": "redis-pipeline",
+      "answerBrief": "Pipeline 把多条命令一次性发给服务端再批量取回结果，省去多次网络往返 RTT，大幅提升吞吐。但它只是批量发送，不保证原子性，命令间可能插入其他客户端命令。",
+      "answerDetail": "## Pipeline 解决的问题\n\n普通请求是「发一条命令→等响应→再发下一条」，N 条命令就有 N 次**网络往返（RTT）**。在高延迟网络下 RTT 是主要瓶颈。\n\nPipeline 一次性把多条命令打包发出，服务端依次执行后批量返回结果，把 N 次 RTT 压缩成 1 次。\n\n```bash\n# redis-cli 演示\n(echo -e 'SET a 1\\nSET b 2\\nGET a'; sleep 1) | redis-cli --pipe\n```\n\n## 注意事项\n\n- 一次别塞太多命令，否则响应数据在服务端**排队占内存**，建议分批（如每批几百到几千条）。\n- 命令之间**没有依赖**才适合 pipeline（无法用前一条结果做后一条参数）。\n\n## Pipeline 不是事务\n\n| 维度 | Pipeline | 事务（MULTI/EXEC） |\n| --- | --- | --- |\n| 目的 | 减少 RTT | 命令打包原子执行 |\n| 原子性 | 无，中间可能插入别的命令 | EXEC 间命令连续执行不被打断 |\n| 隔离性 | 无 | 有 |\n\n要原子性用 `MULTI/EXEC` 或 Lua；要吞吐用 Pipeline；二者也可结合（pipeline 里发 MULTI/EXEC）。",
+      "followUps": [
+        { "question": "Pipeline 里一次发太多命令有什么风险？", "hint": "服务端响应缓冲堆积占内存，应分批发送控制单批数量。" },
+        { "question": "Pipeline 和 MULTI/EXEC 能一起用吗？", "hint": "可以，在 pipeline 中发送 MULTI…EXEC，既减少 RTT 又获得原子性。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Redis", "性能优化", "高频"]
+    },
+    {
+      "title": "Redis 事务（MULTI/EXEC）是怎样的？支持回滚吗？",
+      "slug": "redis-transaction-multi-exec",
+      "answerBrief": "MULTI 开启事务，命令先入队，EXEC 一次性顺序执行且不被打断，DISCARD 取消。Redis 事务不支持回滚：运行时报错的命令会跳过，其余照常执行，靠 WATCH 实现乐观锁。",
+      "answerDetail": "## 基本命令\n\n```bash\nMULTI                 # 开启事务\nSET k1 v1             # 命令入队（返回 QUEUED）\nINCR k2\nEXEC                  # 顺序执行队列里所有命令\n# DISCARD 可取消事务\n```\n\n## 特性\n\n- **入队**：MULTI 后命令不立即执行，而是放入队列。\n- **顺序执行**：EXEC 时一次性按入队顺序执行，期间**不会被其他客户端命令打断**（单线程串行）。\n\n## 不支持回滚\n\nRedis 事务**没有回滚**机制：\n\n- **语法错误**（入队时就报错）：整个事务取消，EXEC 拒绝执行。\n- **运行时错误**（如对 String 执行 LPUSH）：该命令失败，但**其余命令照常执行**，已执行的不回滚。\n\nantirez 认为这类错误多是编程 bug，回滚增加复杂度且无法在生产帮上忙。\n\n## WATCH 乐观锁\n\n```bash\nWATCH balance         # 监视 key\nMULTI\nDECRBY balance 100\nEXEC                  # 若 balance 在 WATCH 后被改过，EXEC 返回 nil 不执行\n```\n\nWATCH 实现 CAS：被监视的 key 在 EXEC 前被修改，事务作废，需重试。",
+      "followUps": [
+        { "question": "为什么 Redis 事务不做回滚？", "hint": "运行时错误多是编程 bug，回滚增加复杂度，作者认为不应在生产掩盖。" },
+        { "question": "WATCH 实现了什么并发控制？", "hint": "乐观锁 CAS，监视的 key 被改则 EXEC 放弃，需应用层重试。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "事务", "高频"]
+    },
+    {
+      "title": "为什么 Redis 用 Lua 脚本能保证原子性？",
+      "slug": "redis-lua-script-atomicity",
+      "answerBrief": "Redis 单线程串行执行命令，整个 Lua 脚本作为一个命令被一次性执行，期间不会插入其他客户端命令，因此天然原子。常用于组合多步操作、实现复杂分布式锁逻辑。",
+      "answerDetail": "## 原子性来源\n\nRedis 命令执行是**单线程串行**的。`EVAL` 执行 Lua 脚本时，整个脚本被当作**一个命令**对待，从开始到结束期间不会有其他客户端命令插进来，所以脚本内的多步操作天然原子。\n\n## 用法\n\n```bash\n# KEYS[1] 是键，ARGV[1] 是参数；库存扣减原子化\nEVAL \"if tonumber(redis.call('get', KEYS[1])) >= tonumber(ARGV[1]) then return redis.call('decrby', KEYS[1], ARGV[1]) else return -1 end\" 1 stock 2\n```\n\n## 典型场景\n\n- **组合多步操作**：判断 + 修改一气呵成（如限流、库存扣减、分布式锁安全释放）。\n- **减少网络往返**：多条逻辑一次发送。\n\n## 注意事项\n\n1. **脚本要快**：脚本执行期间会阻塞整个实例，避免写大循环或慢操作。\n2. **保证幂等/确定性**：早期版本不允许脚本内产生随机或依赖时间的非确定结果，以保证主从一致复制（Redis 7 改用 effects replication 复制实际写效果）。\n3. 用 `SCRIPT LOAD` + `EVALSHA` 缓存脚本，避免每次传输脚本体。\n\n## 与事务对比\n\nLua 比 MULTI/EXEC 更灵活——能在脚本里基于中间结果做条件判断和分支，事务做不到。",
+      "followUps": [
+        { "question": "EVALSHA 相比 EVAL 有什么好处？", "hint": "脚本预先 SCRIPT LOAD 缓存，之后只传 SHA1 摘要，省带宽。" },
+        { "question": "Lua 脚本执行慢会有什么后果？", "hint": "脚本期间阻塞整个单线程实例，所有其他命令排队等待。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "Lua", "高频"]
+    },
+    {
+      "title": "Redis 的 Bitmap、HyperLogLog、GEO 各适合什么场景？",
+      "slug": "redis-bitmap-hll-geo",
+      "answerBrief": "Bitmap 用位存布尔状态，做签到、活跃用户统计省内存；HyperLogLog 用极小内存做海量去重基数估算（有误差）；GEO 基于 ZSet 存经纬度，做附近的人、距离计算。",
+      "answerDetail": "## Bitmap（位图）\n\n基于 String，用每一位表示一个布尔状态，极省内存。\n\n```bash\nSETBIT sign:1001 5 1      # 用户 1001 第 6 天签到\nBITCOUNT sign:1001        # 统计签到天数\n```\n\n场景：签到打卡、用户活跃统计、布隆过滤器底层。\n\n## HyperLogLog\n\n用约 12KB 固定内存估算**海量基数（去重计数）**，标准误差约 0.81%。\n\n```bash\nPFADD uv:20260611 user1 user2 user3\nPFCOUNT uv:20260611       # 估算去重 UV\n```\n\n场景：UV 统计、海量去重计数。**有误差**，不适合精确计数。\n\n## GEO\n\n底层是 **ZSet**，把经纬度编码成 GeoHash 作为 score 存储。\n\n```bash\nGEOADD city 116.40 39.90 beijing\nGEOSEARCH city FROMMEMBER beijing BYRADIUS 100 km ASC   # 附近 100km\n```\n\n场景：附近的人、网点查询、距离计算。\n\n## 对比要点\n\n| 类型 | 内存 | 精确度 | 场景 |\n| --- | --- | --- | --- |\n| Bitmap | 省（位级） | 精确 | 布尔状态统计 |\n| HyperLogLog | 极省（固定 ~12KB） | 估算有误差 | 海量去重计数 |\n| GEO | 同 ZSet | 精确 | 地理位置 |",
+      "followUps": [
+        { "question": "HyperLogLog 为什么能用极小内存统计海量基数？", "hint": "基于概率算法估算，不存元素本身，用桶记录最大前导零，牺牲精度换内存。" },
+        { "question": "两个时间段的活跃用户取交集用什么？", "hint": "Bitmap 配合 BITOP AND 对多日位图做按位与统计连续活跃。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "数据结构"]
+    },
+    {
+      "title": "Redis 持久化时 fork 子进程为什么不会复制整个内存？",
+      "slug": "redis-fork-copy-on-write",
+      "answerBrief": "fork 利用操作系统的写时复制（COW），子进程和父进程初始共享同一份物理内存页，只有当某一方修改某页时才真正复制该页，从而避免一次性拷贝全部内存。",
+      "answerDetail": "## fork 与写时复制\n\nBGSAVE/BGREWRITEAOF 通过 `fork()` 创建子进程做持久化。fork 后父子进程：\n\n- **虚拟地址空间各自独立**，但初始都指向**同一份物理内存页**。\n- 内存页标记为**只读共享**。\n- 当父进程（继续处理写命令）或子进程修改某页时，操作系统触发**写时复制（Copy-On-Write）**：复制出一份新页给修改方，互不影响。\n\n这样子进程看到的是 fork 那一刻的数据快照，且无需立即复制整个内存。\n\n## 带来的影响\n\n1. **内存开销取决于写入量**：fork 期间父进程写得越多，被复制的页越多，最坏会接近内存翻倍。\n2. **fork 本身耗时**：要复制页表，实例越大（内存越多）fork 越慢，可能造成毫秒级阻塞抖动。\n\n## 优化建议\n\n```bash\n# 关闭透明大页，避免 COW 时复制 2MB 大页放大开销\nTHP=never\n```\n\n- 关闭 transparent huge pages（THP），减少 COW 复制粒度。\n- 持久化安排在低峰期，控制实例内存大小。",
+      "followUps": [
+        { "question": "为什么 fork 期间写入越多内存开销越大？", "hint": "每次写触发 COW 复制对应页，被改的页越多额外内存占用越高。" },
+        { "question": "为什么建议关闭透明大页（THP）？", "hint": "THP 让 COW 以 2MB 大页为单位复制，放大内存开销和延迟抖动。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Redis", "持久化"]
+    },
+    {
+      "title": "Redis 的 String 底层有哪几种编码？什么时候转换？",
+      "slug": "redis-string-encoding",
+      "answerBrief": "String 有 int、embstr、raw 三种编码：纯整数用 int；短字符串（≤44 字节）用 embstr 一次分配内存；超长或被修改后转 raw 单独分配 SDS。可用 OBJECT ENCODING 查看。",
+      "answerDetail": "## 三种编码\n\n| 编码 | 适用 | 特点 |\n| --- | --- | --- |\n| int | 值是 long 范围内整数 | 直接存数字，共享 0~9999 整数对象 |\n| embstr | 短字符串（≤44 字节） | redisObject 和 SDS 连续一次分配，省内存、缓存友好 |\n| raw | 长字符串（>44 字节） | redisObject 和 SDS 分两次分配 |\n\n## 转换时机\n\n- 存入纯整数 → `int`：\n\n```bash\nSET n 100\nOBJECT ENCODING n        # \"int\"\n```\n\n- 短字符串 → `embstr`，超过 44 字节 → `raw`：\n\n```bash\nSET s \"hello\"\nOBJECT ENCODING s        # \"embstr\"\n```\n\n- **embstr 是只读的**：一旦对 embstr 字符串执行 `APPEND`、`SETRANGE` 等修改，会转成 `raw`，之后不再转回。\n\n## 为什么 44 字节\n\nembstr 的设计目标是让 redisObject + SDS 头 + 字符串内容正好落在一次内存分配（约 64 字节）内，扣除对象头和 SDS 头后字符串可用空间约 44 字节。\n\n## 整数共享\n\nRedis 启动时预创建 0~9999 的整数对象池，存这些值时共享同一对象，节省内存。",
+      "followUps": [
+        { "question": "对 embstr 执行 APPEND 后编码会变吗？", "hint": "会变为 raw，且不会再变回 embstr。" },
+        { "question": "为什么 embstr 比 raw 更省内存？", "hint": "对象头和 SDS 一次性连续分配，少一次 malloc 且内存局部性更好。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "底层编码"]
+    },
+    {
+      "title": "Redis 如何用于实现消息队列？有哪些方案？",
+      "slug": "redis-message-queue",
+      "answerBrief": "可用 List（LPUSH+BRPOP）做简单队列；Pub/Sub 做实时广播但不持久化、消费者离线丢消息；Stream 是 5.0 专门的消息队列，支持消费组、ACK、消息回溯，最接近 Kafka。",
+      "answerDetail": "## 三种方案\n\n### 1. List 实现\n\n```bash\nLPUSH queue task1        # 生产\nBRPOP queue 5            # 消费（阻塞最多 5 秒）\n```\n\n- 优点：简单、消息持久化在 List 里。\n- 缺点：无消费组、无 ACK 确认，消息消费后即删除，崩溃易丢；不支持多消费者负载均衡。\n\n### 2. Pub/Sub 发布订阅\n\n```bash\nSUBSCRIBE news\nPUBLISH news hello\n```\n\n- 优点：实时广播，一对多。\n- 缺点：**不持久化**，消费者离线期间的消息直接丢失，无堆积无回溯。\n\n### 3. Stream（5.0+，推荐）\n\n专为消息队列设计，借鉴 Kafka：\n\n```bash\nXADD stream * field1 v1               # 生产，* 自动生成 ID\nXGROUP CREATE stream g1 0             # 创建消费组\nXREADGROUP GROUP g1 c1 COUNT 1 STREAMS stream >\nXACK stream g1 <id>                   # 确认消费\n```\n\n- 支持**消费组**（多消费者负载均衡）、**ACK 确认**、**PENDING 列表**（未确认消息重投）、**消息回溯**。\n- 消息持久化，不会因消费者离线丢失。\n\n## 选型\n\n| 场景 | 方案 |\n| --- | --- |\n| 简单异步任务 | List |\n| 实时广播、不在乎丢 | Pub/Sub |\n| 可靠消息、消费组 | Stream |\n\n要求严格可靠/高吞吐仍建议 Kafka、RocketMQ。",
+      "followUps": [
+        { "question": "为什么 Pub/Sub 不适合可靠消息队列？", "hint": "消息不持久化，消费者离线期间发布的消息直接丢失，无堆积无重试。" },
+        { "question": "Stream 的 PENDING 列表有什么用？", "hint": "记录已投递未 ACK 的消息，消费者崩溃后可重新认领重投，保证不丢。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "消息队列"]
+    },
+    {
+      "title": "Redis 主从架构下读取从节点可能读到旧数据吗？",
+      "slug": "redis-replica-stale-read",
+      "answerBrief": "可能。主从复制是异步的，主节点写完即返回，命令异步传播到从节点存在延迟，读写分离时从节点可能短暂落后，读到旧值。强一致读应读主或用 WAIT 命令。",
+      "answerDetail": "## 为什么会读到旧数据\n\n主从复制是**异步**的：\n\n1. 主节点执行写命令后**立即返回**给客户端，不等从节点确认。\n2. 写命令再**异步**传播给从节点。\n\n所以在传播完成前，从节点的数据落后于主节点。读写分离把读打到从节点，就可能读到**旧值**（复制延迟窗口内）。\n\n## 加剧延迟的因素\n\n- 网络抖动、从节点负载高、大 key 同步。\n- 从节点正在做全量复制（加载 RDB）。\n\n## 缓解手段\n\n1. **关键读走主节点**：对一致性敏感的读不做读写分离。\n2. **WAIT 命令**：写后用 `WAIT numreplicas timeout` 阻塞等待指定数量从节点确认，提高一致性（非强一致，超时仍返回）。\n\n```bash\nSET k v\nWAIT 1 100      # 等至少 1 个从节点确认，最多等 100ms\n```\n\n3. 监控 `master_repl_offset` 与从节点 offset 差距评估延迟。\n\n## 结论\n\nRedis 主从是**最终一致**，对强一致场景需读主或引入额外确认机制，不能盲目读写分离。",
+      "followUps": [
+        { "question": "WAIT 命令能保证强一致吗？", "hint": "不能，它只等待指定数量副本确认，超时仍返回，且不阻止后续不一致读。" },
+        { "question": "如何监控主从复制延迟？", "hint": "对比主从 INFO 里的 master_repl_offset 差值，或看 slave 的 lag。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "主从复制"]
+    },
+    {
+      "title": "Redis 中如何实现一个限流器？",
+      "slug": "redis-rate-limiter",
+      "answerBrief": "简单计数用 INCR+EXPIRE 做固定窗口；滑动窗口用 ZSet 存请求时间戳并清理窗口外的；更精确用令牌桶（Lua 维护令牌数与时间戳）。核心是把判断与更新放进 Lua 保证原子。",
+      "answerDetail": "## 1. 固定窗口计数\n\n```bash\nINCR rate:user:1001\nEXPIRE rate:user:1001 60     # 1 分钟窗口\n```\n\n判断计数是否超阈值。缺点：窗口临界点可能出现两倍流量（边界突刺）。为原子性应用 Lua 把 INCR+EXPIRE 合并。\n\n## 2. 滑动窗口（ZSet）\n\n用 ZSet 存每次请求的时间戳：\n\n```bash\nZADD rate 1718000000 req1            # score 为毫秒时间戳\nZREMRANGEBYSCORE rate 0 (now-window) # 移除窗口外\nZCARD rate                           # 当前窗口内请求数\n```\n\n精度高，解决了固定窗口的边界问题，但内存占用更大。\n\n## 3. 令牌桶（Lua）\n\n用 Lua 脚本原子地维护「令牌数 + 上次填充时间」，按时间差补充令牌，够则放行扣减：\n\n```python\n# 伪代码逻辑\n# tokens = min(capacity, tokens + (now - last) * rate)\n# if tokens >= 1: tokens -= 1; 放行 else: 拒绝\n```\n\n令牌桶能应对突发流量（桶内有存量），漏桶则平滑恒定速率。\n\n## 关键点\n\n限流的「读取 + 判断 + 更新」必须**原子执行**，否则并发下会超发，因此通常用 **Lua 脚本**实现。生产可直接用 Redisson 的 RRateLimiter。",
+      "followUps": [
+        { "question": "固定窗口限流的临界问题是什么？", "hint": "窗口交界处前后各满额请求，瞬时可达两倍阈值流量。" },
+        { "question": "令牌桶和漏桶算法的区别？", "hint": "令牌桶允许突发（桶内有存量），漏桶恒定速率流出更平滑。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["Redis", "限流", "高频"]
+    },
+    {
+      "title": "Redis 的发布订阅（Pub/Sub）机制是怎样的？",
+      "slug": "redis-pub-sub",
+      "answerBrief": "发布者 PUBLISH 消息到频道，订阅该频道的客户端实时收到，支持频道精确订阅和 PSUBSCRIBE 模式匹配订阅。消息不持久化，离线订阅者收不到历史消息。",
+      "answerDetail": "## 基本用法\n\n```bash\n# 客户端 A 订阅\nSUBSCRIBE news.tech\n# 客户端 B 发布\nPUBLISH news.tech \"redis 7 released\"\n```\n\n订阅了 `news.tech` 的所有客户端会立即收到该消息。\n\n## 模式订阅\n\n```bash\nPSUBSCRIBE news.*        # 匹配 news.tech、news.sport 等\n```\n\n用 glob 风格通配批量订阅多个频道。\n\n## 特点\n\n- **实时广播**：一条消息推给所有订阅者，一对多。\n- **无持久化**：消息发出即推，**不存储**。订阅者离线期间的消息收不到，没有 ACK、没有堆积、不能回溯。\n- **解耦**：发布者和订阅者互不感知。\n\n## 典型场景\n\n- 配置变更通知、缓存失效广播。\n- 简单的实时通知/聊天（容忍丢消息）。\n\n## 局限\n\n要可靠投递、消费组、消息回溯，应改用 **Stream**；跨实例广播可用 Redis 的 keyspace 通知或专业 MQ。\n\n## Redis 7 分片订阅\n\nRedis 7 新增 `SSUBSCRIBE`/`SPUBLISH` 分片发布订阅，让消息只在负责对应 slot 的节点间传播，降低 Cluster 下的广播开销。",
+      "followUps": [
+        { "question": "Pub/Sub 和 Stream 在可靠性上有何本质区别？", "hint": "Pub/Sub 不持久化、离线即丢；Stream 持久化且支持消费组与 ACK 重投。" },
+        { "question": "Redis 7 的分片订阅解决了什么问题？", "hint": "Cluster 下普通订阅要全节点广播，分片订阅只在相关 slot 节点间传播省带宽。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Redis", "消息队列"]
+    },
+    {
+      "title": "Redis 单个实例能存多少数据？内存满了会怎样？",
+      "slug": "redis-memory-limit-behavior",
+      "answerBrief": "理论受物理内存限制，建议单实例不超过几十 GB（fork 和恢复变慢）。内存达 maxmemory 时按淘汰策略处理：noeviction 拒绝写命令报错，其他策略淘汰旧 key 腾空间。",
+      "answerDetail": "## 容量上限\n\nRedis 数据全在内存，单实例容量受**物理内存**限制。但实践中不建议太大：\n\n- 实例越大，`fork` 做持久化越慢，造成阻塞抖动。\n- 重启加载 RDB/AOF 恢复越慢。\n- 主从全量同步耗时越长。\n\n经验上单实例控制在**几 GB 到几十 GB**，更大用 **Cluster 横向分片**。\n\n## 配置最大内存\n\n```bash\nmaxmemory 4gb\nmaxmemory-policy allkeys-lru\n```\n\n## 内存满了的行为\n\n达到 `maxmemory` 时，由 `maxmemory-policy` 决定：\n\n- **noeviction（默认）**：拒绝执行写命令并返回 OOM 错误，读命令仍可用。\n- **其他策略**（allkeys-lru/lfu、volatile-* 等）：按规则淘汰部分 key 腾出空间后再写入。\n\n## 注意\n\n- 不设 `maxmemory` 时 Redis 会一直吃内存，可能触发 OOM Killer 杀进程，生产必须设置。\n- 还要预留内存给 fork 的 COW、复制缓冲区、客户端缓冲区，`maxmemory` 别设到物理内存满额。",
+      "followUps": [
+        { "question": "为什么生产环境一定要设置 maxmemory？", "hint": "不设会无限增长触发系统 OOM Killer 杀掉进程，设置后由淘汰策略可控管理。" },
+        { "question": "为什么单实例不宜过大？", "hint": "fork 持久化、重启恢复、主从全量同步都随内存增大而变慢，影响可用性。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Redis", "运维"]
+    },
+    {
+      "title": "Redis 6 引入的多线程具体多在哪里？为什么命令仍单线程？",
+      "slug": "redis-6-multi-thread",
+      "answerBrief": "Redis 6 的多线程只用于网络 IO：多个线程并行处理 socket 读写和协议解析，缓解大流量下网络成为瓶颈。命令执行仍由主线程串行，以保留无锁、原子、实现简单的优势。",
+      "answerDetail": "## 多线程的范围\n\nRedis 6.0 引入的多线程**仅作用于网络 IO**：\n\n- 多个 IO 线程并行负责 socket 的**读取请求、解析协议**和**写回响应**。\n- **命令的实际执行依然由主线程单线程串行完成**。\n\n## 为什么要加 IO 多线程\n\n随着硬件提升，Redis 的瓶颈常常不在命令执行（内存操作极快），而在**网络 IO**：大量连接、大 value 的读写和协议解析消耗 CPU。单线程处理这些会成为瓶颈。\n\n## 为什么命令仍单线程\n\n命令执行保持单线程是为了：\n\n1. **天然原子**：无需加锁，命令串行执行不会有竞态。\n2. **实现简单**：数据结构操作无需考虑并发安全。\n3. 命令本身基于内存已经足够快，多线程收益小却引入锁复杂度。\n\n## 开启方式\n\n```bash\nio-threads 4              # IO 线程数（含主线程）\nio-threads-do-reads yes   # 让 IO 线程也处理读\n```\n\n官方建议 4 核以上机器才开，线程数一般为 CPU 核数的一半到 3/4，并非越多越好。\n\n## 误区\n\n「Redis 6 变多线程了」常被误解为命令并发执行——实际命令执行仍是单线程，只是网络层并行了。",
+      "followUps": [
+        { "question": "为什么命令执行不改成多线程以提升吞吐？", "hint": "会破坏无锁原子模型，引入锁竞争和复杂度，而内存命令本身已够快收益有限。" },
+        { "question": "io-threads 设置越大越好吗？", "hint": "不是，超过物理核收益递减甚至下降，一般设 CPU 核数的一半左右。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["Redis", "单线程", "高频"]
+    },
+    {
+      "title": "Redis 和 Memcached 有什么区别？为什么更常用 Redis？",
+      "slug": "redis-vs-memcached",
+      "answerBrief": "Memcached 只支持简单 KV、纯内存不持久化、多线程；Redis 支持丰富数据结构、持久化、主从与集群、发布订阅和事务，功能远超 Memcached，所以现在缓存基本首选 Redis。",
+      "answerDetail": "## 核心区别\n\n| 维度 | Redis | Memcached |\n| --- | --- | --- |\n| 数据结构 | String、List、Hash、Set、ZSet 等丰富类型 | 只有简单 key-value |\n| 持久化 | 支持 RDB/AOF | 不支持，重启即丢 |\n| 高可用 | 主从、哨兵、Cluster | 原生不支持，需客户端分片 |\n| 线程模型 | 命令单线程（6.0 后 IO 多线程） | 多线程 |\n| 额外能力 | 发布订阅、事务、Lua、过期策略 | 基本没有 |\n| 内存管理 | 自带淘汰策略、可较精细 | slab 分配，可能内存碎片浪费 |\n\n## 为什么常用 Redis\n\n1. **数据结构丰富**：能直接用 ZSet 做排行榜、List 做队列，Memcached 都要应用层自己实现。\n2. **持久化与高可用**：Redis 可落盘、可搭主从集群，Memcached 挂了数据全没。\n3. **生态成熟**：分布式锁、限流、消息队列等场景都有现成方案。\n\n## Memcached 的适用场景\n\n纯粹的、海量的简单 KV 缓存，且数据可丢、value 较大、追求多线程吞吐时，Memcached 仍有一席之地，但大多数场景 Redis 已能覆盖且更灵活。",
+      "followUps": [
+        { "question": "Memcached 多线程，为什么吞吐不一定比 Redis 高？", "hint": "Redis 基于内存命令本身极快，瓶颈常在网络，6.0 后也有 IO 多线程。" },
+        { "question": "什么场景下还会考虑 Memcached？", "hint": "纯简单 KV、可丢失、value 较大且追求多核并发的缓存场景。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Redis", "缓存", "高频"]
+    },
+    {
+      "title": "为什么生产环境要用 SCAN 而不是 KEYS 命令？",
+      "slug": "redis-scan-vs-keys",
+      "answerBrief": "KEYS 一次性 O(N) 遍历所有 key，会长时间阻塞单线程导致服务卡顿；SCAN 基于游标分批返回，每次只扫一小部分，不阻塞，是生产遍历 key 的正确方式。",
+      "answerDetail": "## KEYS 的问题\n\n```bash\nKEYS user:*      # 一次性匹配所有符合的 key\n```\n\n- 时间复杂度 **O(N)**，N 是库中全部 key 数量。\n- Redis 单线程执行，KEYS 期间**阻塞所有其他命令**，百万级 key 可能卡住数秒，生产事故级别。\n\n## SCAN 的优势\n\n```bash\nSCAN 0 MATCH user:* COUNT 100\n# 返回 [新游标, 本批 key]，游标为 0 表示遍历结束\nSCAN <cursor> MATCH user:* COUNT 100\n```\n\n- **基于游标分批**：每次只扫一小批，命令很快返回，不长时间阻塞。\n- COUNT 是**建议值**（每批大致扫多少），不是精确返回条数。\n\n## SCAN 的特性与注意\n\n1. **弱一致**：遍历期间新增/删除的 key 可能漏掉或重复，但保证「全程存在的 key 一定被返回」。\n2. 同类游标命令还有 `HSCAN`、`SSCAN`、`ZSCAN`，用于大集合内部遍历。\n3. 需要循环调用直到游标回到 0 才算遍历完。\n\n## 同理避坑\n\n类似的危险命令还有大集合上的 `HGETALL`、`SMEMBERS`、`LRANGE 0 -1`，生产应改用 SCAN 系列或限制范围。",
+      "followUps": [
+        { "question": "SCAN 的 COUNT 参数是精确返回数量吗？", "hint": "不是，只是每批扫描工作量的建议值，实际返回条数会有出入。" },
+        { "question": "SCAN 遍历期间数据变化会有什么影响？", "hint": "弱一致，可能漏掉或重复，但全程存在的 key 保证被返回一次。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Redis", "运维", "高频"]
+    },
+    {
+      "title": "Redis 如何实现一个简单的计数器？并发安全吗？",
+      "slug": "redis-counter-incr",
+      "answerBrief": "用 INCR/INCRBY 对 String 原子自增即可实现计数器，如点赞数、库存。因为 Redis 命令单线程串行执行，INCR 天然并发安全，无需额外加锁。",
+      "answerDetail": "## 基本用法\n\n```bash\nINCR article:1001:views        # 自增 1，返回新值\nINCRBY stock:2001 -1           # 按指定步长增减\nINCRBYFLOAT score:3001 1.5      # 浮点自增\nDECR / DECRBY                   # 自减\n```\n\n## 为什么并发安全\n\nRedis 命令执行是**单线程串行**的：即使一万个客户端同时 `INCR` 同一个 key，命令也会排队逐个执行，不会出现「读-改-写」竞态。所以计数器**天然并发安全，无需加锁**。\n\n这与「先 GET 再 SET +1」截然不同——后者两步之间会被其他请求插入导致丢更新，而 INCR 是单条原子命令。\n\n## 典型场景\n\n- 文章浏览量、点赞数、评论数。\n- 限流计数（配合 EXPIRE）。\n- 秒杀库存扣减（配合 Lua 判断防超卖）。\n\n## 注意\n\n- INCR 要求 value 是能解析为整数的字符串，否则报错。\n- 计数器若需要过期，用 `SET key 0 EX 60` 初始化或对 key 设 EXPIRE，注意 INCR 不会重置过期时间。\n- 高并发热点计数 key 也可能成为热 key，必要时分片累加（如 key#1…key#N 求和）。",
+      "followUps": [
+        { "question": "为什么不能用 GET 然后 SET +1 来计数？", "hint": "两步非原子，并发下多个请求读到同值再写回会丢失更新。" },
+        { "question": "计数器 key 成为热 key 怎么办？", "hint": "拆成多个分片 key 分散写入，读取时求和，分散单 key 压力。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Redis", "数据结构", "高频"]
+    },
+    {
+      "title": "Redis 的 expire 过期时间在什么操作后会被清除？",
+      "slug": "redis-expire-persist-rules",
+      "answerBrief": "对 key 执行覆盖写入（如 SET）会清除原有过期时间变永久；而 INCR、LPUSH、HSET 等只改值不动 TTL；RENAME 会沿用源 key 的 TTL；PERSIST 可手动移除过期。",
+      "answerDetail": "## 哪些操作会清除过期时间\n\n关键区别在于**是否整体覆盖了这个 key**。\n\n| 操作 | 对 TTL 的影响 |\n| --- | --- |\n| `SET key newval` | **清除** TTL，key 变永久（除非带 KEEPTTL 或 EX） |\n| `GETSET` | 清除 TTL |\n| `INCR` / `DECR` / `APPEND` | **保留** TTL，只改值 |\n| `LPUSH` / `SADD` / `HSET` 等 | **保留** TTL |\n| `RENAME oldkey newkey` | newkey 沿用 oldkey 的 TTL |\n| `PERSIST key` | 手动移除 TTL 变永久 |\n| `EXPIRE` / `SET ... EX` | 重新设置 TTL |\n\n## SET 清除 TTL 的坑\n\n```bash\nSET k v EX 100      # k 100 秒后过期\nSET k v2            # 注意！TTL 被清除，k 变永久了\nSET k v2 KEEPTTL    # 用 KEEPTTL 保留原过期时间\n```\n\n这是常见 bug 来源：给 key 设了过期，又用普通 SET 覆盖后过期失效，导致缓存永不过期堆积。\n\n## 为什么 INCR 不清 TTL\n\nINCR 只是修改 value，并未把 key 当作「新 key」重建，所以过期属性保留。理解「覆盖写 vs 修改值」就能记住规则。",
+      "followUps": [
+        { "question": "如何在 SET 覆盖时保留原过期时间？", "hint": "用 SET key val KEEPTTL，Redis 6.0 起支持保留已有 TTL。" },
+        { "question": "RENAME 后新 key 的过期时间是什么？", "hint": "沿用源 key 的剩余 TTL，过期属性随 key 一起转移。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["Redis", "过期淘汰"]
+    }
+  ]
+}

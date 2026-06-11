@@ -1,0 +1,461 @@
+{
+  "bank": {
+    "name": "前端",
+    "slug": "frontend",
+    "description": "JS 核心 · CSS · React · 浏览器",
+    "icon": "🌐",
+    "category": "前端",
+    "sortOrder": 2
+  },
+  "questions": [
+    {
+      "title": "什么是闭包？有哪些应用场景？",
+      "slug": "frontend-js-closure",
+      "answerBrief": "闭包是函数与其词法作用域的组合，内层函数可以访问外层函数作用域中的变量，即使外层函数已返回。常用于数据私有化、柯里化、防抖节流。",
+      "answerDetail": "## 定义\n\n闭包（Closure）指的是一个函数能够记住并访问它的词法作用域，即使这个函数在其词法作用域之外执行。本质是函数与其创建时所处词法环境的引用绑定。\n\n## 原理\n\n当内层函数引用了外层函数的变量时，外层函数执行结束后，这些变量不会被垃圾回收，而是被内层函数持有引用，形成闭包。\n\n```javascript\nfunction makeCounter() {\n  let count = 0; // 被闭包捕获\n  return function () {\n    return ++count;\n  };\n}\nconst counter = makeCounter();\ncounter(); // 1\ncounter(); // 2\n```\n\n## 应用场景\n\n| 场景 | 说明 |\n| --- | --- |\n| 数据私有化 | 模拟私有变量，外部无法直接访问 |\n| 函数柯里化 | 分步接收参数 |\n| 防抖/节流 | 用闭包保存定时器引用 |\n| 模块模式 | IIFE 封装内部状态 |\n\n## 注意\n\n闭包持有的变量常驻内存，使用不当（如循环中绑定事件）可能造成内存占用偏高，需要及时解除引用。",
+      "followUps": [
+        { "question": "闭包会导致内存泄漏吗？", "hint": "考虑引用未释放的场景与现代引擎的优化，区分内存占用和真正的泄漏。" },
+        { "question": "循环中用 var 创建闭包会发生什么？", "hint": "var 没有块级作用域，所有回调共享同一个变量，最终都是循环结束后的值。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "JavaScript", "高频"]
+    },
+    {
+      "title": "请解释 JavaScript 的原型链",
+      "slug": "frontend-js-prototype-chain",
+      "answerBrief": "每个对象都有一个内部指针 __proto__ 指向其构造函数的 prototype，访问属性时沿着这条链向上查找，直到 null，这条链就是原型链，也是 JS 实现继承的基础。",
+      "answerDetail": "## 核心概念\n\n- 每个函数都有 `prototype` 属性，指向原型对象。\n- 每个对象都有 `__proto__`（即 `[[Prototype]]`），指向其构造函数的 `prototype`。\n- 原型对象也是对象，它的 `__proto__` 继续向上指，直到 `Object.prototype`，再向上是 `null`。\n\n## 查找规则\n\n访问 `obj.prop` 时，先在自身查找，找不到就沿 `__proto__` 逐级向上，直到找到或到达链顶 `null` 返回 `undefined`。\n\n```javascript\nfunction Person(name) {\n  this.name = name;\n}\nPerson.prototype.sayHi = function () {\n  return 'Hi ' + this.name;\n};\nconst p = new Person('Tom');\np.sayHi(); // 自身没有，沿原型链找到\np.__proto__ === Person.prototype; // true\n```\n\n## 关系图\n\n| 表达式 | 结果 |\n| --- | --- |\n| `p.__proto__` | `Person.prototype` |\n| `Person.prototype.__proto__` | `Object.prototype` |\n| `Object.prototype.__proto__` | `null` |\n\n原型链是 JS 基于原型的继承机制的底层实现，`instanceof` 正是沿原型链检测的。",
+      "followUps": [
+        { "question": "instanceof 的实现原理是什么？", "hint": "沿着对象的原型链查找，判断构造函数的 prototype 是否出现在链上。" },
+        { "question": "如何实现一个对象继承另一个对象？", "hint": "考虑 Object.create、构造函数借用、ES6 class extends 几种方式。" },
+        { "question": "Object.create(null) 创建的对象有什么特点？", "hint": "它没有原型链，没有继承自 Object.prototype 的方法，常用作纯净字典。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "JavaScript", "高频"]
+    },
+    {
+      "title": "this 的指向是如何确定的？",
+      "slug": "frontend-js-this-binding",
+      "answerBrief": "this 在函数调用时确定，与定义位置无关。规则优先级：new 绑定 > 显式绑定（call/apply/bind）> 隐式绑定（对象调用）> 默认绑定（指向 window 或 undefined）。箭头函数无自己的 this。",
+      "answerDetail": "## 四条绑定规则\n\nthis 的值在函数被调用时确定，取决于调用方式，按优先级从高到低：\n\n1. **new 绑定**：`new Fn()` 时 this 指向新创建的实例。\n2. **显式绑定**：`call`/`apply`/`bind` 指定 this。\n3. **隐式绑定**：`obj.fn()` 时 this 指向 obj。\n4. **默认绑定**：独立调用，非严格模式指向全局对象，严格模式为 undefined。\n\n```javascript\nfunction show() {\n  return this.name;\n}\nconst obj = { name: 'A', show };\nobj.show(); // 'A' 隐式绑定\nconst f = obj.show;\nf.call({ name: 'B' }); // 'B' 显式绑定\n```\n\n## 箭头函数\n\n箭头函数没有自己的 this，它捕获定义时所在词法作用域的 this，且无法用 call/apply 改变。\n\n```javascript\nconst obj = {\n  name: 'C',\n  greet() {\n    return (() => this.name)();\n  },\n};\nobj.greet(); // 'C' 箭头函数继承 greet 的 this\n```\n\n## 易错点\n\n回调函数（如 setTimeout、数组遍历）中 this 容易丢失，常用箭头函数或 bind 修复。",
+      "followUps": [
+        { "question": "箭头函数和普通函数在 this 上的区别？", "hint": "箭头函数没有自己的 this/arguments，由定义时的词法作用域决定。" },
+        { "question": "如何手写实现一个 bind 方法？", "hint": "返回新函数，内部用 apply 绑定 this 与预置参数，并处理 new 调用的情况。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "JavaScript", "高频"]
+    },
+    {
+      "title": "请讲讲事件循环（Event Loop）与宏任务、微任务",
+      "slug": "frontend-js-event-loop",
+      "answerBrief": "JS 是单线程，通过事件循环处理异步。每次执行完同步代码后清空所有微任务（Promise、MutationObserver），再取一个宏任务（setTimeout、I/O）执行，如此循环。微任务优先级高于宏任务。",
+      "answerDetail": "## 单线程与异步\n\nJS 引擎是单线程的，异步任务由宿主环境（浏览器/Node）配合完成。事件循环负责协调调用栈、任务队列之间的执行顺序。\n\n## 宏任务与微任务\n\n| 类型 | 包含 |\n| --- | --- |\n| 宏任务 | script 整体、setTimeout、setInterval、I/O、UI 渲染 |\n| 微任务 | Promise.then、queueMicrotask、MutationObserver |\n\n## 执行流程\n\n1. 执行一个宏任务（同步代码）。\n2. 执行过程中产生的微任务进入微任务队列。\n3. 当前宏任务结束，**清空所有微任务**（包括微任务里新产生的微任务）。\n4. 渲染（可能），然后取下一个宏任务。\n\n```javascript\nconsole.log(1);\nsetTimeout(() => console.log(2));\nPromise.resolve().then(() => console.log(3));\nconsole.log(4);\n// 输出顺序：1 4 3 2\n```\n\n同步先执行输出 1、4；微任务 3 在宏任务 2 之前。\n\n## 关键点\n\n微任务在每个宏任务后被一次性清空，所以微任务总是先于下一个宏任务。",
+      "followUps": [
+        { "question": "Node.js 的事件循环和浏览器有什么不同？", "hint": "Node 有 timers、poll、check 等多个阶段，process.nextTick 优先级最高。" },
+        { "question": "async/await 在事件循环中如何执行？", "hint": "await 后面的代码相当于 then 回调，作为微任务在当前宏任务后执行。" },
+        { "question": "如何让一段代码在下一次重绘前执行？", "hint": "考虑 requestAnimationFrame 的触发时机，它在渲染前调用。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["前端", "JavaScript", "高频"]
+    },
+    {
+      "title": "Promise 的三种状态和基本用法是什么？",
+      "slug": "frontend-js-promise-states",
+      "answerBrief": "Promise 有三种状态：pending、fulfilled、rejected，状态一旦改变就不可逆。通过 then 处理成功、catch 处理失败、finally 收尾。它解决了回调地狱，让异步代码更线性。",
+      "answerDetail": "## 三种状态\n\n- **pending**（进行中）：初始状态。\n- **fulfilled**（已成功）：调用 resolve 后。\n- **rejected**（已失败）：调用 reject 后。\n\n状态只能从 pending 转为 fulfilled 或 rejected，且一旦改变不可逆。\n\n## 基本用法\n\n```javascript\nconst p = new Promise((resolve, reject) => {\n  setTimeout(() => resolve('done'), 100);\n});\np.then((val) => console.log(val))\n  .catch((err) => console.error(err))\n  .finally(() => console.log('end'));\n```\n\n## 链式调用\n\nthen 返回一个新的 Promise，因此可以链式调用，每个 then 的返回值传给下一个 then。\n\n```javascript\nPromise.resolve(1)\n  .then((v) => v + 1)\n  .then((v) => console.log(v)); // 2\n```\n\n## 常用静态方法\n\n| 方法 | 作用 |\n| --- | --- |\n| `Promise.all` | 全部成功才成功，有一个失败即失败 |\n| `Promise.race` | 返回最先敲定的结果 |\n| `Promise.allSettled` | 等待全部敲定，不会短路 |\n| `Promise.any` | 第一个成功即成功 |",
+      "followUps": [
+        { "question": "Promise.all 和 Promise.allSettled 的区别？", "hint": "all 遇到第一个 reject 就整体失败，allSettled 等待全部敲定并返回每项结果。" },
+        { "question": "如何手写一个符合规范的 Promise？", "hint": "维护状态机、回调队列，注意 then 返回新 Promise 与异步执行。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "JavaScript", "高频"]
+    },
+    {
+      "title": "async/await 的原理是什么？相比 Promise 有何优势？",
+      "slug": "frontend-js-async-await",
+      "answerBrief": "async/await 是 Generator + Promise 的语法糖，async 函数返回 Promise，await 暂停函数执行等待 Promise 敲定。它让异步代码写起来像同步代码，可读性更好，错误处理可用 try/catch。",
+      "answerDetail": "## 本质\n\nasync 函数总是返回一个 Promise；await 会暂停 async 函数的执行，等待右侧 Promise 敲定后取出其值，再恢复执行。它底层是 Generator + 自动执行器的语法糖。\n\n## 用法\n\n```javascript\nasync function getUser() {\n  try {\n    const res = await fetch('/api/user');\n    const data = await res.json();\n    return data;\n  } catch (err) {\n    console.error(err);\n  }\n}\n```\n\n## 相比 Promise 的优势\n\n| 维度 | Promise | async/await |\n| --- | --- | --- |\n| 可读性 | then 链较多时嵌套 | 接近同步写法 |\n| 错误处理 | catch | try/catch 统一处理 |\n| 调试 | 断点难跟 | 断点逐行清晰 |\n\n## 注意事项\n\n- 多个无依赖的 await 会串行等待，应该用 `Promise.all` 并行。\n\n```javascript\n// 串行（慢）\nconst a = await fetchA();\nconst b = await fetchB();\n// 并行（快）\nconst [a, b] = await Promise.all([fetchA(), fetchB()]);\n```\n\n- await 只能在 async 函数或顶层模块中使用。",
+      "followUps": [
+        { "question": "多个 await 串行会有什么性能问题？如何优化？", "hint": "无依赖的请求应该用 Promise.all 并行，而不是逐个 await 串行等待。" },
+        { "question": "async 函数里 throw 错误会怎样？", "hint": "返回的 Promise 会被 reject，可被外层 catch 或 try/catch 捕获。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "JavaScript", "高频"]
+    },
+    {
+      "title": "var、let、const 有什么区别？",
+      "slug": "frontend-js-var-let-const",
+      "answerBrief": "var 是函数作用域、会变量提升、可重复声明；let/const 是块级作用域、存在暂时性死区、不可重复声明。const 声明后不可重新赋值，但引用类型的内部属性仍可修改。",
+      "answerDetail": "## 对比\n\n| 特性 | var | let | const |\n| --- | --- | --- | --- |\n| 作用域 | 函数 | 块级 | 块级 |\n| 变量提升 | 提升并初始化为 undefined | 提升但有 TDZ | 提升但有 TDZ |\n| 重复声明 | 允许 | 不允许 | 不允许 |\n| 重新赋值 | 允许 | 允许 | 不允许 |\n\n## 暂时性死区（TDZ）\n\nlet/const 声明的变量在声明前不可访问，这段区域称为暂时性死区。\n\n```javascript\nconsole.log(a); // undefined（var 提升）\nvar a = 1;\nconsole.log(b); // ReferenceError（TDZ）\nlet b = 2;\n```\n\n## const 的不可变\n\nconst 保证的是绑定不可变，不是值不可变。\n\n```javascript\nconst arr = [1];\narr.push(2); // OK，修改的是内容\narr = [];    // TypeError，不能重新赋值\n```\n\n## 实践建议\n\n优先用 const，需要重新赋值才用 let，避免使用 var。",
+      "followUps": [
+        { "question": "什么是暂时性死区？", "hint": "let/const 在声明前的区域不可访问，引用会抛 ReferenceError。" },
+        { "question": "const 定义的对象可以修改属性吗？为什么？", "hint": "可以，const 锁定的是变量绑定而非引用指向的内容。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["前端", "JavaScript", "高频"]
+    },
+    {
+      "title": "== 和 === 有什么区别？",
+      "slug": "frontend-js-equality-operators",
+      "answerBrief": "=== 是严格相等，不做类型转换，类型不同直接返回 false；== 是抽象相等，会先做隐式类型转换再比较。实践中推荐用 ===，避免隐式转换带来的意外结果。",
+      "answerDetail": "## 区别\n\n- `===` 严格相等：先比较类型，类型不同返回 false，类型相同再比较值。\n- `==` 抽象相等：类型不同时按规则做隐式类型转换后再比较。\n\n## 隐式转换规则（简化）\n\n| 比较 | 结果 |\n| --- | --- |\n| `1 == '1'` | true（字符串转数字） |\n| `null == undefined` | true（特殊规定） |\n| `null == 0` | false（null 只与 undefined 相等） |\n| `NaN == NaN` | false（NaN 不等于任何值） |\n| `[] == false` | true（都转成数字 0） |\n\n```javascript\n0 == '';      // true\n0 == '0';     // true\n'' == '0';    // false 看似矛盾\nNaN === NaN;  // false\n```\n\n## 推荐\n\n始终使用 `===` 与 `!==`，避免隐式转换。判断 null/undefined 可用 `== null` 一次覆盖两者。\n\n## Object.is\n\nObject.is 与 === 几乎一致，但能区分 `+0` 与 `-0`，并认为 `NaN` 等于 `NaN`。",
+      "followUps": [
+        { "question": "NaN 和自身相等吗？如何判断一个值是 NaN？", "hint": "NaN 不等于任何值，用 Number.isNaN 判断而非全局 isNaN。" },
+        { "question": "Object.is 和 === 有什么差异？", "hint": "Object.is 能区分正负零，并认为 NaN 等于 NaN。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["前端", "JavaScript", "高频"]
+    },
+    {
+      "title": "深拷贝和浅拷贝有什么区别？如何实现深拷贝？",
+      "slug": "frontend-js-deep-clone",
+      "answerBrief": "浅拷贝只复制第一层，嵌套对象仍共享引用；深拷贝递归复制所有层级，得到完全独立的副本。深拷贝可用 structuredClone、JSON 转换或递归手写，需处理循环引用与特殊类型。",
+      "answerDetail": "## 区别\n\n- **浅拷贝**：`Object.assign`、扩展运算符只复制一层，嵌套引用共享。\n- **深拷贝**：递归复制每一层，源对象与副本互不影响。\n\n```javascript\nconst obj = { a: 1, b: { c: 2 } };\nconst shallow = { ...obj };\nshallow.b.c = 99; // obj.b.c 也变成 99\n```\n\n## 实现方式\n\n| 方法 | 优点 | 缺点 |\n| --- | --- | --- |\n| `JSON.parse(JSON.stringify())` | 简单 | 丢失函数、undefined、Date、循环引用报错 |\n| `structuredClone` | 原生、支持循环引用 | 不支持函数 |\n| 递归手写 | 可控 | 需自行处理边界 |\n\n## 递归实现（处理循环引用）\n\n```javascript\nfunction deepClone(obj, map = new WeakMap()) {\n  if (obj === null || typeof obj !== 'object') return obj;\n  if (map.has(obj)) return map.get(obj);\n  const clone = Array.isArray(obj) ? [] : {};\n  map.set(obj, clone);\n  for (const key in obj) {\n    if (Object.prototype.hasOwnProperty.call(obj, key)) {\n      clone[key] = deepClone(obj[key], map);\n    }\n  }\n  return clone;\n}\n```\n\nWeakMap 缓存已拷贝对象，避免循环引用导致栈溢出。",
+      "followUps": [
+        { "question": "JSON.parse(JSON.stringify()) 深拷贝有哪些缺陷？", "hint": "会丢失函数、undefined、Symbol，Date 变字符串，遇循环引用报错。" },
+        { "question": "如何处理深拷贝中的循环引用？", "hint": "用 WeakMap 缓存已克隆的对象，遇到相同引用直接返回缓存值。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["前端", "JavaScript", "高频"]
+    },
+    {
+      "title": "防抖和节流的区别是什么？分别如何实现？",
+      "slug": "frontend-js-debounce-throttle",
+      "answerBrief": "防抖是事件触发后延迟执行，期间再次触发就重新计时，适合搜索联想；节流是固定时间内最多执行一次，适合滚动、resize。两者都用闭包保存定时器或时间戳来控制执行频率。",
+      "answerDetail": "## 概念区别\n\n- **防抖（debounce）**：触发后等待 n 毫秒再执行，若期间再次触发则重新计时。典型场景：搜索框输入联想、表单校验。\n- **节流（throttle）**：在 n 毫秒内最多执行一次。典型场景：滚动加载、resize、按钮防连点。\n\n## 防抖实现\n\n```javascript\nfunction debounce(fn, delay) {\n  let timer = null;\n  return function (...args) {\n    clearTimeout(timer);\n    timer = setTimeout(() => fn.apply(this, args), delay);\n  };\n}\n```\n\n## 节流实现（时间戳版）\n\n```javascript\nfunction throttle(fn, interval) {\n  let last = 0;\n  return function (...args) {\n    const now = Date.now();\n    if (now - last >= interval) {\n      last = now;\n      fn.apply(this, args);\n    }\n  };\n}\n```\n\n## 对比\n\n| 维度 | 防抖 | 节流 |\n| --- | --- | --- |\n| 执行时机 | 停止触发后执行 | 固定频率执行 |\n| 场景 | 输入联想、窗口停止 | 滚动、拖拽、resize |\n\n两者都依赖闭包保存定时器或时间戳状态。",
+      "followUps": [
+        { "question": "防抖如何实现立即执行（首次触发就执行）？", "hint": "加 immediate 参数，首次无定时器时立即调用，再开始计时。" },
+        { "question": "节流用定时器和时间戳实现有什么差别？", "hint": "时间戳版首次立即执行末次不执行，定时器版首次延迟末次会执行。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "JavaScript", "高频"]
+    },
+    {
+      "title": "什么是 BFC？它能解决哪些问题？",
+      "slug": "frontend-css-bfc",
+      "answerBrief": "BFC（块级格式化上下文）是一个独立的渲染区域，内部元素布局不影响外部。触发 BFC 可以清除浮动、防止 margin 重叠、阻止元素被浮动元素覆盖。",
+      "answerDetail": "## 定义\n\nBFC（Block Formatting Context，块级格式化上下文）是页面中一块独立的渲染区域，内部元素的布局与外部互不干扰。\n\n## 如何触发\n\n- `overflow` 不为 visible（如 hidden、auto）\n- `display: flow-root`（最干净的方式）\n- `float` 不为 none\n- `position: absolute / fixed`\n- `display: inline-block / table-cell / flex / grid`\n\n## 能解决的问题\n\n| 问题 | 说明 |\n| --- | --- |\n| 清除浮动 | 父元素触发 BFC 后能包裹浮动子元素 |\n| margin 重叠 | 相邻块级元素的上下 margin 会合并，分属不同 BFC 可避免 |\n| 自适应两栏 | 给非浮动元素触发 BFC，使其不与浮动元素重叠 |\n\n## 示例\n\n```\n.container {\n  display: flow-root; /* 触发 BFC，包裹内部浮动 */\n}\n.float-left {\n  float: left;\n  width: 200px;\n}\n.main {\n  overflow: hidden; /* 触发 BFC，自适应剩余宽度 */\n}\n```\n\n推荐用 `display: flow-root` 触发，无副作用。",
+      "followUps": [
+        { "question": "为什么相邻元素的 margin 会重叠？", "hint": "同一 BFC 内垂直方向的相邻 margin 会合并取较大值，这是规范行为。" },
+        { "question": "清除浮动还有哪些方法？", "hint": "clearfix 伪元素、overflow:hidden、display:flow-root 等。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "CSS", "高频"]
+    },
+    {
+      "title": "请说说 CSS 盒模型，标准盒模型和怪异盒模型的区别",
+      "slug": "frontend-css-box-model",
+      "answerBrief": "盒模型由 content、padding、border、margin 组成。标准盒模型 width 只包含 content；怪异（IE）盒模型 width 包含 content+padding+border。可通过 box-sizing 切换，border-box 即怪异模型。",
+      "answerDetail": "## 盒模型组成\n\n从内到外：content（内容）→ padding（内边距）→ border（边框）→ margin（外边距）。\n\n## 两种盒模型\n\n| 模型 | box-sizing | width 计算范围 |\n| --- | --- | --- |\n| 标准盒模型 | content-box（默认） | 仅 content |\n| 怪异盒模型 | border-box | content + padding + border |\n\n## 示例\n\n```\n.box {\n  width: 200px;\n  padding: 20px;\n  border: 5px solid;\n  box-sizing: content-box; /* 实际占宽 250px */\n}\n.box2 {\n  box-sizing: border-box;  /* 实际占宽仍 200px，内容区被压缩 */\n}\n```\n\n## 实践建议\n\n项目通常全局设置 `box-sizing: border-box`，因为它让宽高计算更直观，加 padding 不会撑大盒子：\n\n```\n* {\n  box-sizing: border-box;\n}\n```\n\n这样布局时尺寸更可控，是现代 CSS 的常见基线设置。",
+      "followUps": [
+        { "question": "为什么很多项目全局设置 box-sizing: border-box？", "hint": "让 padding 和 border 不撑大元素，尺寸计算更直观可控。" },
+        { "question": "margin 合并发生在什么情况下？", "hint": "垂直方向相邻块级元素、父子元素、空块自身的 margin 会合并。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["前端", "CSS", "高频"]
+    },
+    {
+      "title": "如何实现元素的水平垂直居中？",
+      "slug": "frontend-css-centering",
+      "answerBrief": "常用方案：Flex（justify-content + align-items: center）、Grid（place-items: center）、绝对定位 + transform、绝对定位 + margin: auto。其中 Flex 最简洁，是现代首选。",
+      "answerDetail": "## 常见方案\n\n### 1. Flex（推荐）\n\n```\n.parent {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n}\n```\n\n### 2. Grid（最简洁）\n\n```\n.parent {\n  display: grid;\n  place-items: center;\n}\n```\n\n### 3. 绝对定位 + transform（不需知道尺寸）\n\n```\n.child {\n  position: absolute;\n  top: 50%;\n  left: 50%;\n  transform: translate(-50%, -50%);\n}\n```\n\n### 4. 绝对定位 + margin auto（需固定宽高）\n\n```\n.child {\n  position: absolute;\n  inset: 0;\n  margin: auto;\n  width: 100px;\n  height: 100px;\n}\n```\n\n## 方案对比\n\n| 方案 | 是否需知尺寸 | 兼容性 |\n| --- | --- | --- |\n| Flex | 否 | 很好 |\n| Grid | 否 | 很好 |\n| transform | 否 | 很好 |\n| margin auto | 是 | 很好 |\n\n实际开发优先用 Flex 或 Grid，简洁且无副作用。",
+      "followUps": [
+        { "question": "transform: translate(-50%, -50%) 的百分比是相对什么计算的？", "hint": "transform 的百分比相对元素自身的宽高，而非父容器。" },
+        { "question": "行内元素和块级元素的水平居中分别怎么做？", "hint": "行内用 text-align:center，块级用 margin:0 auto。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["前端", "CSS", "高频"]
+    },
+    {
+      "title": "Flex 布局的常用属性有哪些？",
+      "slug": "frontend-css-flexbox",
+      "answerBrief": "Flex 容器属性：flex-direction、justify-content（主轴对齐）、align-items（交叉轴对齐）、flex-wrap。项目属性：flex-grow、flex-shrink、flex-basis（合写为 flex）、align-self。",
+      "answerDetail": "## 容器属性\n\n| 属性 | 作用 |\n| --- | --- |\n| `flex-direction` | 主轴方向 row/column |\n| `justify-content` | 主轴对齐 center/space-between 等 |\n| `align-items` | 交叉轴对齐 |\n| `flex-wrap` | 是否换行 |\n| `gap` | 项目间距 |\n\n## 项目属性\n\n| 属性 | 作用 |\n| --- | --- |\n| `flex-grow` | 放大比例，剩余空间分配 |\n| `flex-shrink` | 缩小比例，空间不足时 |\n| `flex-basis` | 初始主轴尺寸 |\n| `flex` | 上面三者的简写 |\n| `align-self` | 单个项目的交叉轴对齐 |\n\n## flex 简写\n\n```\n.item {\n  flex: 1;        /* 等价 flex: 1 1 0%，平分剩余空间 */\n  flex: 0 0 200px;/* 不放大不缩小，固定 200px */\n}\n```\n\n## 常见布局\n\n```\n.nav {\n  display: flex;\n  justify-content: space-between; /* 两端对齐 */\n  align-items: center;           /* 垂直居中 */\n}\n```\n\nFlex 适合一维布局（行或列），二维布局更适合用 Grid。",
+      "followUps": [
+        { "question": "flex: 1 具体代表什么？", "hint": "是 flex-grow:1、flex-shrink:1、flex-basis:0% 的简写，平分剩余空间。" },
+        { "question": "Flex 和 Grid 各适合什么场景？", "hint": "Flex 适合一维（一行或一列），Grid 适合二维网格布局。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["前端", "CSS", "高频"]
+    },
+    {
+      "title": "CSS 中有哪些单位？rem、em、vw、vh 有什么区别？",
+      "slug": "frontend-css-units",
+      "answerBrief": "px 是绝对单位；em 相对父元素字体大小；rem 相对根元素 html 的字体大小；vw/vh 相对视口宽高的百分之一。响应式常用 rem 配合根字号，或直接用 vw。",
+      "answerDetail": "## 单位分类\n\n| 单位 | 参照物 |\n| --- | --- |\n| `px` | 绝对像素 |\n| `em` | 当前元素的 font-size（用于 font-size 时参照父元素） |\n| `rem` | 根元素 html 的 font-size |\n| `vw` / `vh` | 视口宽/高的 1% |\n| `%` | 相对父元素对应属性 |\n\n## em 与 rem 的区别\n\nem 会层层累积，嵌套时容易失控；rem 始终参照根字号，更可预测。\n\n```\nhtml { font-size: 16px; }\n.box { font-size: 1.5rem; } /* 24px，相对 html */\n.parent { font-size: 20px; }\n.child  { font-size: 1.5em; } /* 30px，相对父元素 */\n```\n\n## 视口单位\n\n```\n.hero {\n  height: 100vh; /* 占满一屏 */\n  width: 50vw;   /* 视口宽的一半 */\n}\n```\n\n## 响应式实践\n\n- 移动端常用 rem + JS 动态设置根字号，或用 `clamp()` 配合 vw 做流式排版。\n- 文字大小推荐 rem，留给用户调整字号的可访问性。",
+      "followUps": [
+        { "question": "移动端 rem 适配方案的原理是什么？", "hint": "根据屏幕宽度动态设置 html 的 font-size，元素用 rem 等比缩放。" },
+        { "question": "clamp() 函数在响应式中怎么用？", "hint": "clamp(min, 理想值, max) 可设置随视口流动但有上下限的尺寸。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["前端", "CSS"]
+    },
+    {
+      "title": "Grid 布局相比 Flex 有什么优势？",
+      "slug": "frontend-css-grid",
+      "answerBrief": "Grid 是二维布局，能同时控制行和列，适合整体页面或卡片网格；Flex 是一维布局。Grid 用 grid-template-columns/rows 定义网格，配合 fr 单位、repeat、minmax 实现自适应。",
+      "answerDetail": "## Flex vs Grid\n\n| 维度 | Flex | Grid |\n| --- | --- | --- |\n| 维度 | 一维（行或列） | 二维（行和列） |\n| 适用 | 导航、工具栏 | 页面骨架、卡片网格 |\n| 对齐控制 | 主轴/交叉轴 | 行列双向精确控制 |\n\n## 核心属性\n\n```\n.grid {\n  display: grid;\n  grid-template-columns: repeat(3, 1fr); /* 三等分列 */\n  grid-template-rows: 100px auto;\n  gap: 16px;\n}\n```\n\n## 自适应网格\n\n```\n.cards {\n  display: grid;\n  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));\n  gap: 20px;\n}\n```\n\n`auto-fill + minmax` 能让卡片随容器宽度自动换行排列，无需媒体查询。\n\n## 区域命名\n\n```\n.layout {\n  display: grid;\n  grid-template-areas:\n    'header header'\n    'sidebar main';\n}\n```\n\nGrid 与 Flex 通常搭配使用：Grid 做整体骨架，Flex 做局部排列。",
+      "followUps": [
+        { "question": "fr 单位是什么意思？", "hint": "fr 表示网格容器中可用空间的等分比例，1fr 即一份剩余空间。" },
+        { "question": "如何用 Grid 实现响应式卡片自动换行？", "hint": "用 repeat(auto-fill, minmax(最小宽, 1fr)) 让列数随宽度自适应。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "CSS"]
+    },
+    {
+      "title": "什么是响应式设计？有哪些实现手段？",
+      "slug": "frontend-css-responsive-design",
+      "answerBrief": "响应式设计让页面适配不同屏幕尺寸。手段包括媒体查询、流式布局（百分比/Flex/Grid）、相对单位（rem/vw）、弹性图片（max-width:100%）、viewport meta 标签。",
+      "answerDetail": "## 核心思路\n\n同一套代码自动适配手机、平板、桌面等不同视口，提升体验并降低维护成本。\n\n## 实现手段\n\n### 1. viewport meta\n\n```\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n```\n\n### 2. 媒体查询\n\n```\n.container { width: 100%; }\n@media (min-width: 768px) {\n  .container { width: 750px; }\n}\n```\n\n### 3. 流式布局与相对单位\n\n用百分比、Flex、Grid、rem、vw 替代固定 px，让布局随容器流动。\n\n### 4. 弹性图片\n\n```\nimg {\n  max-width: 100%;\n  height: auto;\n}\n```\n\n## 移动优先\n\n推荐 mobile-first：先写移动端样式，再用 `min-width` 媒体查询渐进增强到大屏，CSS 更精简。\n\n| 策略 | 媒体查询方向 |\n| --- | --- |\n| 移动优先 | min-width 向上增强 |\n| 桌面优先 | max-width 向下覆盖 |\n\n现代还可用容器查询（container query）按容器尺寸而非视口响应。",
+      "followUps": [
+        { "question": "移动优先和桌面优先有什么区别？", "hint": "移动优先用 min-width 渐进增强，桌面优先用 max-width 逐步覆盖。" },
+        { "question": "容器查询和媒体查询的区别？", "hint": "媒体查询基于视口尺寸，容器查询基于父容器尺寸，组件更可复用。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["前端", "CSS"]
+    },
+    {
+      "title": "React 中虚拟 DOM 是什么？为什么需要它？",
+      "slug": "frontend-react-virtual-dom",
+      "answerBrief": "虚拟 DOM 是用 JS 对象描述真实 DOM 结构的轻量副本。状态变化时先在虚拟 DOM 上 diff 出差异，再批量更新真实 DOM，减少昂贵的 DOM 操作，同时屏蔽手动操作 DOM 的复杂度。",
+      "answerDetail": "## 是什么\n\n虚拟 DOM（Virtual DOM）是用普通 JS 对象来描述真实 DOM 节点的树形结构，包含标签、属性、子节点等信息。\n\n```javascript\n// JSX <div id=\"app\">hi</div> 编译后大致是\nconst vnode = {\n  type: 'div',\n  props: { id: 'app' },\n  children: ['hi'],\n};\n```\n\n## 为什么需要\n\n1. **性能**：直接频繁操作真实 DOM 触发重排重绘代价高。虚拟 DOM 先在内存中 diff，计算出最小变更集再批量更新。\n2. **跨平台**：虚拟 DOM 是平台无关的抽象，可渲染到 DOM、Native、Canvas 等。\n3. **声明式**：开发者只描述状态对应的 UI，框架负责高效更新，不必手动操作 DOM。\n\n## 更新流程\n\n| 步骤 | 说明 |\n| --- | --- |\n| 生成新树 | 状态变化重新渲染出新虚拟 DOM |\n| diff 比较 | 与旧树对比找出差异 |\n| patch | 把差异应用到真实 DOM |\n\n## 注意\n\n虚拟 DOM 不一定比手写原生 DOM 更快，它的价值在于以可接受的性能换取声明式开发体验与可维护性。",
+      "followUps": [
+        { "question": "虚拟 DOM 一定比直接操作真实 DOM 快吗？", "hint": "不一定，它换取的是开发效率与可维护性，极致优化的原生操作可能更快。" },
+        { "question": "React 的 diff 算法做了哪些优化？", "hint": "同层比较、用 type 判断是否复用、用 key 优化列表，把复杂度降到 O(n)。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "React", "高频"]
+    },
+    {
+      "title": "React diff 算法的原理是什么？key 的作用是什么？",
+      "slug": "frontend-react-diff-key",
+      "answerBrief": "React diff 基于三个策略：只做同层比较、不同 type 直接替换、列表用 key 标识身份。key 帮助 React 识别哪些元素移动、新增或删除，避免错误复用导致状态错乱和性能浪费。",
+      "answerDetail": "## diff 三大策略\n\n1. **同层比较**：只比较同一层级节点，不跨层移动，把复杂度从 O(n³) 降到 O(n)。\n2. **type 不同直接替换**：节点类型变了就销毁旧子树重建，不再深入比较。\n3. **列表用 key**：通过 key 标识节点身份，复用、移动或删除对应节点。\n\n## key 的作用\n\nkey 是 React 区分同层兄弟节点的身份标识。没有正确的 key，React 默认按下标比较，插入/删除会导致后续节点全部错位重渲。\n\n```javascript\n// 不推荐：用 index 作 key，列表顺序变化会出错\nlist.map((item, index) => <Item key={index} />);\n// 推荐：用稳定唯一 id\nlist.map((item) => <Item key={item.id} />);\n```\n\n## index 作 key 的问题\n\n| 场景 | 后果 |\n| --- | --- |\n| 列表头部插入 | 所有 index 错位，组件状态错乱 |\n| 排序/过滤 | 复用错误节点，受控输入值串位 |\n\n## 建议\n\nkey 要稳定、唯一、可预测，优先用数据的业务 id，避免用随机数或下标。",
+      "followUps": [
+        { "question": "为什么不推荐用数组 index 作为 key？", "hint": "列表顺序变化时 index 会错位，导致状态串位和不必要的重渲。" },
+        { "question": "React diff 为什么只做同层比较？", "hint": "跨层比较复杂度太高，同层比较把算法从 O(n³) 降到接近 O(n)。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["前端", "React", "高频"]
+    },
+    {
+      "title": "useState 和 useEffect 的原理与常见坑是什么？",
+      "slug": "frontend-react-usestate-useeffect",
+      "answerBrief": "useState 返回状态和更新函数，更新是异步批量的；useEffect 在渲染后执行副作用，依赖数组决定何时重跑，返回清理函数。常见坑：闭包陷阱、依赖缺失、无限循环。",
+      "answerDetail": "## useState\n\n返回 `[state, setState]`，setState 触发重新渲染。同一事件中的多次更新会被批处理；基于旧值更新要用函数式写法。\n\n```javascript\nsetCount(count + 1); // 多次调用可能只生效一次\nsetCount((c) => c + 1); // 函数式，安全累加\n```\n\n## useEffect\n\n在渲染提交后异步执行副作用，依赖数组决定触发时机：\n\n| 依赖 | 执行时机 |\n| --- | --- |\n| 不传 | 每次渲染后都执行 |\n| `[]` | 仅挂载后执行一次 |\n| `[a, b]` | a 或 b 变化时执行 |\n\n返回的函数用于清理（如解绑事件、清定时器）。\n\n```javascript\nuseEffect(() => {\n  const id = setInterval(tick, 1000);\n  return () => clearInterval(id); // 清理\n}, []);\n```\n\n## 常见坑\n\n- **闭包陷阱**：effect 捕获了旧的 state，需正确填依赖或用函数式更新/ref。\n- **依赖缺失**：漏写依赖导致逻辑用到过期值，应配合 ESLint 插件。\n- **无限循环**：effect 内 setState 又触发自身依赖变化。",
+      "followUps": [
+        { "question": "useEffect 的闭包陷阱是怎么产生的？如何解决？", "hint": "effect 捕获了创建时的 state 快照，可用函数式更新、补全依赖或 useRef。" },
+        { "question": "useState 的更新是同步还是异步的？", "hint": "React 会批处理更新，事件处理函数中表现为异步，连续更新要用函数式写法。" },
+        { "question": "依赖数组为空和不传有什么区别？", "hint": "空数组只在挂载执行一次，不传则每次渲染后都会执行。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["前端", "React", "高频"]
+    },
+    {
+      "title": "useMemo 和 useCallback 有什么区别？什么时候用？",
+      "slug": "frontend-react-usememo-usecallback",
+      "answerBrief": "useMemo 缓存计算结果的值，useCallback 缓存函数引用。两者都依赖数组控制是否重新计算，用于避免昂贵计算重复执行，或避免子组件因引用变化而无谓重渲，但滥用反而增加开销。",
+      "answerDetail": "## 区别\n\n- `useMemo(fn, deps)`：缓存 fn 的返回**值**。\n- `useCallback(fn, deps)`：缓存**函数本身**，等价于 `useMemo(() => fn, deps)`。\n\n```javascript\nconst expensive = useMemo(() => heavyCompute(list), [list]);\nconst handleClick = useCallback(() => doSomething(id), [id]);\n```\n\n## 使用场景\n\n| 场景 | 用哪个 |\n| --- | --- |\n| 缓存昂贵计算结果 | useMemo |\n| 给 memo 子组件传稳定函数 | useCallback |\n| 作为其他 hook 的依赖项 | 两者皆可，保持引用稳定 |\n\n## 配合 React.memo\n\n父组件每次渲染都会创建新函数引用，导致被 `React.memo` 包裹的子组件失效重渲。用 useCallback 保持引用稳定可避免：\n\n```javascript\nconst Child = React.memo(({ onClick }) => <button onClick={onClick} />);\n```\n\n## 注意\n\n缓存本身有成本（存依赖、比较）。只有计算确实昂贵或确需引用稳定时才用，否则过度优化得不偿失。",
+      "followUps": [
+        { "question": "useCallback 一定能提升性能吗？", "hint": "不一定，缓存有开销，子组件没用 memo 时反而是负优化。" },
+        { "question": "React.memo 和 useMemo 有什么关系？", "hint": "React.memo 缓存组件渲染结果，useMemo 缓存值，常配合使用减少重渲。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "React"]
+    },
+    {
+      "title": "React 受控组件和非受控组件有什么区别？",
+      "slug": "frontend-react-controlled-components",
+      "answerBrief": "受控组件的表单值由 React state 控制，通过 value + onChange 双向同步；非受控组件的值由 DOM 自身维护，用 ref 读取。受控更可控、易校验，非受控更简单、性能略好。",
+      "answerDetail": "## 受控组件\n\n表单元素的值由 React state 驱动，每次输入触发 onChange 更新 state，再回写到 value。\n\n```javascript\nfunction Form() {\n  const [name, setName] = useState('');\n  return (\n    <input value={name} onChange={(e) => setName(e.target.value)} />\n  );\n}\n```\n\n## 非受控组件\n\n值由 DOM 自身维护，React 不参与，需要时用 ref 读取。\n\n```javascript\nfunction Form() {\n  const ref = useRef(null);\n  const submit = () => console.log(ref.current.value);\n  return <input defaultValue=\"\" ref={ref} />;\n}\n```\n\n## 对比\n\n| 维度 | 受控 | 非受控 |\n| --- | --- | --- |\n| 数据源 | React state | DOM |\n| 实时校验 | 容易 | 较难 |\n| 代码量 | 多 | 少 |\n| 适用 | 复杂表单 | 简单表单、文件上传 |\n\n## 建议\n\n大多数场景推荐受控组件，状态可控、易于校验和联动；文件上传等场景只能用非受控。",
+      "followUps": [
+        { "question": "文件上传 input 为什么必须是非受控的？", "hint": "出于安全，file input 的 value 不能被 JS 赋值，只能由用户选择。" },
+        { "question": "受控组件输入卡顿如何优化？", "hint": "考虑防抖、useDeferredValue 或拆分大型表单减少重渲范围。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "React"]
+    },
+    {
+      "title": "React 性能优化有哪些常用手段？",
+      "slug": "frontend-react-performance",
+      "answerBrief": "常用手段：React.memo 避免子组件重渲、useMemo/useCallback 缓存、列表加稳定 key、懒加载与代码分割（lazy + Suspense）、虚拟列表、合理拆分组件、用 useDeferredValue/useTransition 降优先级。",
+      "answerDetail": "## 减少重渲染\n\n- `React.memo` 包裹纯展示组件，props 不变则跳过渲染。\n- `useMemo` / `useCallback` 缓存值与函数引用，避免传给子组件的引用每次变化。\n- 合理拆分组件，缩小重渲影响范围。\n\n## 长列表优化\n\n用虚拟列表（react-window / react-virtualized）只渲染可视区域节点，避免一次性渲染上万 DOM。\n\n## 代码分割\n\n```javascript\nconst Page = React.lazy(() => import('./Page'));\n<Suspense fallback={<Loading />}>\n  <Page />\n</Suspense>\n```\n\n按路由/组件懒加载，减小首屏包体积。\n\n## 并发特性\n\n| API | 作用 |\n| --- | --- |\n| `useTransition` | 把非紧急更新标记为可中断 |\n| `useDeferredValue` | 延迟派生值，保持输入流畅 |\n\n## 其它\n\n- 列表用稳定 key，避免错误复用。\n- 避免在渲染中创建新对象/函数作为 props。\n- 合理使用状态下放，把频繁变化的状态隔离到小组件。",
+      "followUps": [
+        { "question": "React.memo 的比较是深比较还是浅比较？", "hint": "默认对 props 做浅比较，引用类型 props 变化仍会触发重渲。" },
+        { "question": "虚拟列表的实现原理是什么？", "hint": "只渲染可视区域内的元素，用占位撑开滚动高度，随滚动复用节点。" },
+        { "question": "useTransition 解决了什么问题？", "hint": "把耗时的状态更新标记为低优先级，避免阻塞用户输入等紧急交互。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["前端", "React", "高频"]
+    },
+    {
+      "title": "React Hooks 为什么不能在条件或循环中调用？",
+      "slug": "frontend-react-hooks-rules",
+      "answerBrief": "React 依靠 Hook 的调用顺序来对应内部状态链表。若在条件或循环中调用，每次渲染的调用顺序可能不一致，导致状态错位。因此 Hook 必须在组件顶层无条件调用。",
+      "answerDetail": "## Hooks 的存储机制\n\nReact 内部为每个组件维护一条 Hook 链表，按调用顺序依次存取状态。第一次 useState 对应第一个节点，第二次对应第二个，以此类推。\n\n```javascript\nfunction Comp() {\n  const [a] = useState(1); // 链表第 1 个\n  const [b] = useState(2); // 链表第 2 个\n}\n```\n\n## 为什么不能条件调用\n\n如果把 Hook 放进条件里，某次渲染跳过它，后续 Hook 的顺序就整体错位，状态会读到错误的节点。\n\n```javascript\n// 错误示范\nif (show) {\n  const [x] = useState(0); // 顺序不稳定，会报错\n}\n```\n\n## 两条规则\n\n| 规则 | 说明 |\n| --- | --- |\n| 只在顶层调用 | 不放在条件、循环、嵌套函数中 |\n| 只在 React 函数中调用 | 组件或自定义 Hook 内 |\n\n## 正确做法\n\n把条件写在 Hook 内部，而不是包裹 Hook：\n\n```javascript\nconst [x, setX] = useState(0);\nuseEffect(() => {\n  if (show) doSomething();\n}, [show]);\n```\n\n配合 `eslint-plugin-react-hooks` 可在开发时自动检查违规。",
+      "followUps": [
+        { "question": "自定义 Hook 是如何复用逻辑的？", "hint": "把内置 Hook 组合封装成以 use 开头的函数，每次调用拥有独立状态。" },
+        { "question": "如何在不违反规则的前提下条件执行副作用？", "hint": "Hook 仍顶层调用，把条件判断写到 effect 函数体内部。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["前端", "React"]
+    },
+    {
+      "title": "请描述浏览器从输入 URL 到页面渲染的完整过程",
+      "slug": "frontend-browser-url-to-render",
+      "answerBrief": "DNS 解析域名得到 IP，建立 TCP 连接（HTTPS 还有 TLS 握手），发送 HTTP 请求，服务器返回 HTML。浏览器解析 HTML 构建 DOM、CSS 构建 CSSOM，合成渲染树，经布局、绘制、合成显示到屏幕。",
+      "answerDetail": "## 网络阶段\n\n1. **URL 解析**：判断协议、域名、路径。\n2. **DNS 解析**：域名转 IP（走缓存、本地、递归查询）。\n3. **TCP 连接**：三次握手；HTTPS 再做 TLS 握手协商密钥。\n4. **发送请求**：构造 HTTP 请求报文。\n5. **服务器响应**：返回状态码与 HTML。\n\n## 渲染阶段\n\n| 步骤 | 说明 |\n| --- | --- |\n| 解析 HTML | 构建 DOM 树 |\n| 解析 CSS | 构建 CSSOM 树 |\n| 合成渲染树 | DOM + CSSOM，剔除不可见节点 |\n| 布局 Layout | 计算每个节点的几何位置 |\n| 绘制 Paint | 生成绘制指令填充像素 |\n| 合成 Composite | 分层合成，GPU 输出到屏幕 |\n\n## 关键点\n\n- 遇到 `<script>` 默认阻塞 DOM 解析，可用 defer/async 优化。\n- CSS 会阻塞渲染，应尽早加载关键 CSS。\n- JS 执行可能修改 DOM/CSSOM 触发重排重绘。\n\n整个过程涉及网络、解析、渲染多个环节，是前端性能优化的全景图。",
+      "followUps": [
+        { "question": "script 标签的 defer 和 async 有什么区别？", "hint": "async 下载完立即执行不保证顺序，defer 延迟到 DOM 解析完按顺序执行。" },
+        { "question": "为什么 CSS 放头部、JS 放底部？", "hint": "CSS 阻塞渲染需尽早加载，JS 阻塞解析放底部避免拖慢首屏。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["前端", "浏览器", "高频"]
+    },
+    {
+      "title": "重排（回流）和重绘有什么区别？如何减少？",
+      "slug": "frontend-browser-reflow-repaint",
+      "answerBrief": "重排是几何属性变化导致重新计算布局，代价高；重绘是外观（如颜色）变化但布局不变，代价较低。重排必然引起重绘。减少方法：批量改样式、用 transform/opacity、避免频繁读写布局属性。",
+      "answerDetail": "## 区别\n\n- **重排（Reflow / 回流）**：元素的几何属性（宽高、位置、display）变化，浏览器需重新计算布局。\n- **重绘（Repaint）**：仅外观变化（颜色、背景、可见性），布局不变。\n\n重排一定会触发重绘，重绘不一定触发重排。重排开销远大于重绘。\n\n## 触发重排的操作\n\n| 操作 | 说明 |\n| --- | --- |\n| 改变尺寸/位置 | width、height、margin、top |\n| 读取布局属性 | offsetTop、clientWidth、getBoundingClientRect |\n| 增删可见 DOM | 改变文档流 |\n\n## 优化手段\n\n1. **批量修改**：用 class 一次性切换，或先 `display:none` 改完再显示。\n2. **使用合成属性**：`transform`、`opacity` 只触发合成，不引起重排重绘。\n3. **避免强制同步布局**：不要在循环中交替读写布局属性。\n\n```javascript\n// 差：读写交替导致多次强制重排\nfor (let i = 0; i < items.length; i++) {\n  items[i].style.width = box.offsetWidth + 'px';\n}\n// 好：先缓存读取结果\nconst w = box.offsetWidth + 'px';\nfor (const item of items) item.style.width = w;\n```\n\n4. 用 `documentFragment` 批量插入节点。",
+      "followUps": [
+        { "question": "为什么 transform 动画比改 left/top 更流畅？", "hint": "transform 只触发合成走 GPU，不引起重排重绘，避免主线程开销。" },
+        { "question": "什么是强制同步布局（layout thrashing）？", "hint": "在循环中交替读写布局属性，迫使浏览器反复重新计算布局。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "浏览器", "高频"]
+    },
+    {
+      "title": "什么是跨域？有哪些解决方案？",
+      "slug": "frontend-browser-cors",
+      "answerBrief": "跨域是浏览器同源策略限制下，协议、域名、端口任一不同时的请求拦截。常见解决方案：CORS（服务端设响应头）、代理服务器、Nginx 反向代理，以及历史方案 JSONP。",
+      "answerDetail": "## 同源策略\n\n协议、域名、端口三者完全相同才算同源。跨域时浏览器会拦截响应（请求其实发出去了）。\n\n## 解决方案\n\n### 1. CORS（主流）\n\n服务端设置响应头允许跨域：\n\n```\nAccess-Control-Allow-Origin: https://example.com\nAccess-Control-Allow-Methods: GET, POST\n```\n\n非简单请求会先发 OPTIONS 预检。\n\n### 2. 开发代理\n\n开发时用 webpack/vite 的 devServer proxy 把请求转发到目标服务器，绕过浏览器限制。\n\n```javascript\n// vite.config\nserver: { proxy: { '/api': 'http://backend.com' } }\n```\n\n### 3. Nginx 反向代理\n\n让前端和接口同源，由 Nginx 转发到真实后端。\n\n### 4. JSONP（已过时）\n\n利用 `<script>` 不受同源限制，仅支持 GET，安全性差，了解即可。\n\n## 对比\n\n| 方案 | 适用 | 说明 |\n| --- | --- | --- |\n| CORS | 生产 | 标准方案，需服务端配合 |\n| 代理 | 开发 | 本地调试便捷 |\n| Nginx | 生产 | 同源转发 |\n\n推荐生产用 CORS，开发用代理。",
+      "followUps": [
+        { "question": "CORS 的预检请求（preflight）什么时候触发？", "hint": "非简单请求（自定义头、PUT/DELETE 等）会先发 OPTIONS 预检。" },
+        { "question": "跨域时请求到底发出去了吗？", "hint": "简单请求会真正发送，只是响应被浏览器拦截不给 JS 读取。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "浏览器", "高频"]
+    },
+    {
+      "title": "浏览器的缓存策略有哪些？强缓存和协商缓存的区别？",
+      "slug": "frontend-browser-cache",
+      "answerBrief": "强缓存命中则不发请求，由 Cache-Control（max-age）和 Expires 控制；协商缓存会发请求由服务器判断是否使用本地缓存，用 ETag/If-None-Match 或 Last-Modified/If-Modified-Since，命中返回 304。",
+      "answerDetail": "## 强缓存\n\n命中后直接用本地缓存，不发请求。优先级 `Cache-Control` > `Expires`。\n\n```\nCache-Control: max-age=3600   // 1 小时内有效\nCache-Control: no-cache        // 跳过强缓存，走协商缓存\nCache-Control: no-store        // 完全不缓存\n```\n\n## 协商缓存\n\n强缓存失效后发请求，由服务器判断资源是否变化：\n\n| 字段对 | 说明 |\n| --- | --- |\n| `ETag` / `If-None-Match` | 基于内容指纹，更精确 |\n| `Last-Modified` / `If-Modified-Since` | 基于修改时间，秒级精度 |\n\n命中返回 `304 Not Modified`，用本地缓存；未命中返回 200 与新资源。\n\n## 完整流程\n\n1. 先查强缓存，命中直接用。\n2. 未命中带验证头发请求。\n3. 服务器比对，未变返回 304，变了返回 200。\n\n## 实践\n\n带 hash 的静态资源用长 max-age 强缓存，HTML 用 no-cache 走协商缓存，兼顾性能与更新及时性。",
+      "followUps": [
+        { "question": "ETag 和 Last-Modified 各有什么优缺点？", "hint": "ETag 基于内容更精确但有计算成本，Last-Modified 只有秒级精度。" },
+        { "question": "no-cache 和 no-store 有什么区别？", "hint": "no-cache 仍缓存但每次需协商验证，no-store 完全不缓存。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "浏览器", "高频"]
+    },
+    {
+      "title": "cookie、localStorage、sessionStorage 有什么区别？",
+      "slug": "frontend-browser-storage",
+      "answerBrief": "cookie 容量约 4KB，每次请求自动携带，可设过期时间，常用于身份认证；localStorage 约 5MB，持久保存；sessionStorage 约 5MB，仅当前会话有效，关闭标签页即清除。后两者不随请求发送。",
+      "answerDetail": "## 三者对比\n\n| 特性 | cookie | localStorage | sessionStorage |\n| --- | --- | --- | --- |\n| 容量 | 约 4KB | 约 5MB | 约 5MB |\n| 过期 | 可设置 | 永久（手动清） | 关闭标签页清除 |\n| 随请求发送 | 是（同源自动带） | 否 | 否 |\n| 作用域 | 同源 + path | 同源 | 同源 + 同标签页 |\n\n## 使用场景\n\n- **cookie**：身份认证（session id、token），需配合 HttpOnly、Secure、SameSite 防护。\n- **localStorage**：持久化数据，如用户偏好、主题。\n- **sessionStorage**：临时数据，如多步表单的中间状态。\n\n```javascript\nlocalStorage.setItem('theme', 'dark');\nlocalStorage.getItem('theme');\nsessionStorage.setItem('step', '2');\n```\n\n## 安全注意\n\n- cookie 设 `HttpOnly` 防 JS 读取，缓解 XSS 窃取。\n- 设 `SameSite` 缓解 CSRF。\n- localStorage 易受 XSS 影响，不应存放敏感 token。",
+      "followUps": [
+        { "question": "cookie 的 HttpOnly 和 SameSite 分别防什么？", "hint": "HttpOnly 防 JS 读取缓解 XSS，SameSite 限制跨站发送缓解 CSRF。" },
+        { "question": "为什么不推荐用 localStorage 存 token？", "hint": "localStorage 可被 XSS 注入脚本读取，敏感凭证更适合 HttpOnly cookie。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["前端", "浏览器", "高频"]
+    },
+    {
+      "title": "JavaScript 的事件机制是怎样的？事件委托是什么？",
+      "slug": "frontend-browser-event-delegation",
+      "answerBrief": "事件传播分三阶段：捕获、目标、冒泡。事件委托利用冒泡，把子元素的事件绑定到父元素上统一处理，减少监听器数量，且对动态新增的子元素也生效。",
+      "answerDetail": "## 事件传播三阶段\n\n1. **捕获阶段**：从 window 向目标元素逐层向下。\n2. **目标阶段**：到达触发事件的元素。\n3. **冒泡阶段**：从目标元素逐层向上回到 window。\n\n```javascript\n// 第三个参数 true 表示在捕获阶段触发\nel.addEventListener('click', handler, true);\n```\n\n## 事件委托\n\n利用冒泡，把多个子元素的事件统一绑定到共同的父元素，根据 `event.target` 判断实际触发源。\n\n```javascript\nlist.addEventListener('click', (e) => {\n  if (e.target.matches('li')) {\n    console.log('点击了', e.target.textContent);\n  }\n});\n```\n\n## 优点\n\n| 优点 | 说明 |\n| --- | --- |\n| 减少监听器 | 一个监听器管理大量子元素 |\n| 动态元素生效 | 新增子节点无需重新绑定 |\n| 内存友好 | 降低事件绑定开销 |\n\n## 相关方法\n\n- `stopPropagation()` 阻止继续传播。\n- `preventDefault()` 阻止默认行为。\n- `e.target` 是实际触发元素，`e.currentTarget` 是绑定监听的元素。",
+      "followUps": [
+        { "question": "event.target 和 event.currentTarget 有什么区别？", "hint": "target 是实际触发事件的元素，currentTarget 是绑定监听器的元素。" },
+        { "question": "事件委托有什么局限性？", "hint": "不冒泡的事件（如 focus、blur）无法委托，需用捕获或对应方案。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "浏览器", "高频"]
+    },
+    {
+      "title": "什么是 Tree Shaking？它的实现原理是什么？",
+      "slug": "frontend-engineering-tree-shaking",
+      "answerBrief": "Tree Shaking 是打包时移除未被引用代码（死代码）的优化。它依赖 ES Module 静态结构在编译期分析依赖，标记未使用的导出并在压缩阶段删除，从而减小产物体积。",
+      "answerDetail": "## 是什么\n\nTree Shaking 指打包工具在构建时摇掉未被使用的代码（dead code），只保留真正用到的部分，减小 bundle 体积。\n\n## 实现原理\n\n核心依赖 **ES Module 的静态结构**：import/export 在编译期就能确定依赖关系，无需运行代码即可静态分析。\n\n```javascript\n// utils.js\nexport function used() {}\nexport function unused() {} // 未被引用，会被摇掉\n\n// main.js\nimport { used } from './utils';\nused();\n```\n\n打包器标记 `unused` 为未使用，压缩阶段（如 Terser）删除。\n\n## 生效条件\n\n| 条件 | 说明 |\n| --- | --- |\n| 使用 ESM | CommonJS 是动态的，难以静态分析 |\n| 无副作用 | package.json 标 sideEffects: false |\n| 生产模式 | 配合压缩才真正删除代码 |\n\n## 副作用标记\n\n```json\n{\n  \"sideEffects\": false\n}\n```\n\n告诉打包器模块无副作用，可安全摇树；若某些文件（如全局 CSS）有副作用，需列出白名单。\n\nTree Shaking 是减小首屏体积的重要工程手段。",
+      "followUps": [
+        { "question": "为什么 CommonJS 难以 Tree Shaking？", "hint": "require 是动态的运行时引入，无法在编译期静态确定依赖关系。" },
+        { "question": "sideEffects 字段的作用是什么？", "hint": "标记模块有无副作用，帮助打包器判断能否安全删除未引用代码。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "工程化"]
+    },
+    {
+      "title": "前端首屏加载优化有哪些手段？",
+      "slug": "frontend-performance-first-screen",
+      "answerBrief": "常用手段：路由懒加载与代码分割、资源压缩与 Tree Shaking、图片懒加载与压缩、CDN 加速、HTTP 缓存、SSR/预渲染、关键 CSS 内联、骨架屏提升体验、预加载关键资源。",
+      "answerDetail": "## 减小资源体积\n\n- 代码分割 + 路由懒加载，按需加载。\n- Tree Shaking 去除死代码，压缩（gzip/brotli）。\n- 图片用 WebP/AVIF，按需压缩，雪碧图或字体图标。\n\n## 加快资源加载\n\n| 手段 | 说明 |\n| --- | --- |\n| CDN | 就近分发静态资源 |\n| HTTP 缓存 | 强缓存 + 协商缓存 |\n| 预加载 | preload 关键资源，prefetch 后续资源 |\n| HTTP/2 | 多路复用减少连接开销 |\n\n## 优化渲染\n\n- **SSR / 预渲染**：服务端直出 HTML，减少白屏。\n- **关键 CSS 内联**：首屏样式内联，避免阻塞。\n- **骨架屏 / Loading**：提升加载体验。\n- 图片懒加载（loading=\"lazy\" 或 IntersectionObserver）。\n\n## 衡量指标\n\n| 指标 | 含义 |\n| --- | --- |\n| FCP | 首次内容绘制 |\n| LCP | 最大内容绘制 |\n| TTI | 可交互时间 |\n\n优化应以真实指标（如 Web Vitals）为导向，先测量再针对瓶颈优化。",
+      "followUps": [
+        { "question": "preload 和 prefetch 有什么区别？", "hint": "preload 高优先级加载当前页关键资源，prefetch 空闲时预取未来资源。" },
+        { "question": "SSR 和 CSR 在首屏上的差异是什么？", "hint": "SSR 服务端直出 HTML 首屏更快，CSR 需下载执行 JS 后才渲染。" },
+        { "question": "图片懒加载怎么实现？", "hint": "用原生 loading=\"lazy\" 或 IntersectionObserver 监测进入视口再加载。" }
+      ],
+      "difficulty": "HARD",
+      "tags": ["前端", "性能优化", "高频"]
+    },
+    {
+      "title": "ES6+ 有哪些常用的新特性？",
+      "slug": "frontend-js-es6-features",
+      "answerBrief": "常用特性包括 let/const、箭头函数、模板字符串、解构赋值、扩展运算符、默认参数、Promise、class、模块化 import/export、Set/Map、可选链 ?. 和空值合并 ??。",
+      "answerDetail": "## 语法增强\n\n- **let/const**：块级作用域。\n- **箭头函数**：简洁写法，无自身 this。\n- **模板字符串**：`` `${name}` `` 拼接。\n- **解构赋值**：从数组/对象提取值。\n\n```javascript\nconst { name, age } = user;\nconst [first, ...rest] = list;\n```\n\n- **扩展运算符**：展开数组/对象。\n- **默认参数**：`function f(a = 1) {}`。\n\n## 异步与模块\n\n- **Promise / async-await**：异步编程。\n- **模块化**：`import` / `export` 标准化模块。\n\n## 新数据结构\n\n| 结构 | 说明 |\n| --- | --- |\n| Set | 值唯一集合，常用于去重 |\n| Map | 任意类型 key 的映射 |\n\n```javascript\nconst unique = [...new Set([1, 1, 2])]; // [1, 2]\n```\n\n## 较新的实用语法\n\n- **可选链 `?.`**：安全访问深层属性。\n- **空值合并 `??`**：仅在 null/undefined 时取默认值。\n\n```javascript\nconst city = user?.address?.city ?? '未知';\n```\n\n这些特性显著提升了 JS 的表达力与健壮性。",
+      "followUps": [
+        { "question": "可选链 ?. 和 && 短路有什么区别？", "hint": "?. 只在 null/undefined 时短路，&& 对所有假值短路，语义更精确。" },
+        { "question": "?? 和 || 取默认值有什么不同？", "hint": "|| 对 0、空串等假值也生效，?? 只在 null/undefined 时取默认值。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["前端", "JavaScript"]
+    },
+    {
+      "title": "JavaScript 的数据类型有哪些？如何准确判断类型？",
+      "slug": "frontend-js-data-types",
+      "answerBrief": "有 7 种原始类型（number、string、boolean、null、undefined、symbol、bigint）和引用类型 object。typeof 可判断大部分但对 null 和数组失效，准确判断用 Object.prototype.toString.call。",
+      "answerDetail": "## 数据类型\n\n| 类别 | 类型 |\n| --- | --- |\n| 原始类型 | number、string、boolean、null、undefined、symbol、bigint |\n| 引用类型 | object（含 Array、Function、Date 等） |\n\n## typeof 的局限\n\n```javascript\ntypeof 1;          // 'number'\ntypeof 'a';        // 'string'\ntypeof undefined;  // 'undefined'\ntypeof null;       // 'object' 历史遗留 bug\ntypeof [];         // 'object' 无法区分数组\ntypeof function(){};// 'function'\n```\n\ntypeof 对 null 返回 'object'，对数组、普通对象都返回 'object'，无法细分。\n\n## 准确判断\n\n用 `Object.prototype.toString.call`：\n\n```javascript\nObject.prototype.toString.call([]);   // '[object Array]'\nObject.prototype.toString.call(null); // '[object Null]'\nObject.prototype.toString.call(/x/);  // '[object RegExp]'\n```\n\n## 其它方式\n\n| 方式 | 适用 |\n| --- | --- |\n| `Array.isArray()` | 判断数组 |\n| `instanceof` | 判断引用类型的原型链 |\n| `Number.isNaN()` | 判断 NaN |\n\n综合来看，基本类型用 typeof，引用类型用 toString.call 最稳妥。",
+      "followUps": [
+        { "question": "为什么 typeof null 返回 object？", "hint": "JS 早期用类型标签实现，null 的标签恰好与对象一致，属历史遗留 bug。" },
+        { "question": "如何判断一个变量是数组？", "hint": "优先用 Array.isArray，或 Object.prototype.toString.call 判断。" }
+      ],
+      "difficulty": "EASY",
+      "tags": ["前端", "JavaScript"]
+    },
+    {
+      "title": "前端有哪些常见的安全问题？如何防范 XSS 和 CSRF？",
+      "slug": "frontend-browser-xss-csrf",
+      "answerBrief": "XSS 是注入恶意脚本，防范靠输入校验、输出转义、CSP；CSRF 是借用户身份发起伪造请求，防范靠 CSRF Token、SameSite cookie、校验 Referer。两者攻击原理与防护手段不同。",
+      "answerDetail": "## XSS（跨站脚本攻击）\n\n攻击者向页面注入恶意脚本，在其他用户浏览器中执行，窃取 cookie 或冒充操作。\n\n| 类型 | 说明 |\n| --- | --- |\n| 存储型 | 脚本存入数据库，所有访问者中招 |\n| 反射型 | 脚本在 URL 参数中，诱导点击 |\n| DOM 型 | 前端直接把不可信数据写入 DOM |\n\n**防范：**\n\n- 输出转义，富文本用白名单过滤。\n- 避免 `innerHTML`，框架默认转义（如 React）。\n- 配置 CSP（内容安全策略）限制脚本来源。\n- 敏感 cookie 设 HttpOnly。\n\n## CSRF（跨站请求伪造）\n\n诱导已登录用户在第三方站点发起伪造请求，借用其身份执行操作。\n\n**防范：**\n\n```\nSet-Cookie: token=xxx; SameSite=Strict; Secure\n```\n\n- **CSRF Token**：表单/请求携带服务端校验的随机 token。\n- **SameSite cookie**：限制跨站携带 cookie。\n- **校验 Referer/Origin**：确认请求来源。\n\n## 对比\n\n| 维度 | XSS | CSRF |\n| --- | --- | --- |\n| 本质 | 注入脚本执行 | 冒用身份发请求 |\n| 关键防护 | 转义 + CSP | Token + SameSite |",
+      "followUps": [
+        { "question": "CSP 是什么？它如何缓解 XSS？", "hint": "通过响应头限制脚本、样式等资源的可信来源，阻止内联和外域恶意脚本执行。" },
+        { "question": "React 默认是如何防 XSS 的？", "hint": "JSX 对插入内容自动转义，dangerouslySetInnerHTML 才会绕过该保护。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "浏览器", "高频"]
+    },
+    {
+      "title": "什么是 JavaScript 的变量提升（hoisting）？",
+      "slug": "frontend-js-hoisting",
+      "answerBrief": "变量提升指 JS 在执行前会把声明提升到作用域顶部。var 声明会提升并初始化为 undefined，函数声明整体提升可提前调用，而 let/const 提升但处于暂时性死区，访问会报错。",
+      "answerDetail": "## 是什么\n\n变量提升（hoisting）是 JS 引擎在执行代码前的编译阶段，把变量和函数声明移到其作用域顶部的行为。本质是声明在编译期被处理，赋值仍留在原地。\n\n## var 的提升\n\n声明被提升，赋值不提升，所以提前访问得到 undefined。\n\n```javascript\nconsole.log(a); // undefined\nvar a = 1;\n```\n\n## 函数声明 vs 函数表达式\n\n```javascript\nfoo(); // 正常，函数声明整体提升\nfunction foo() {}\n\nbar(); // TypeError，bar 此时是 undefined\nvar bar = function () {};\n```\n\n函数声明整体提升，可在声明前调用；函数表达式只提升变量名。\n\n## let/const\n\n也会提升，但存在暂时性死区，声明前访问抛 ReferenceError。\n\n| 声明 | 提升 | 提前访问结果 |\n| --- | --- | --- |\n| var | 是 | undefined |\n| function | 是（含函数体） | 可正常调用 |\n| let/const | 是 | 抛 ReferenceError |\n\n## 优先级\n\n同名时函数声明优先于变量声明被提升。理解提升有助于排查作用域相关的诡异 bug。",
+      "followUps": [
+        { "question": "函数声明和函数表达式的提升有什么区别？", "hint": "函数声明连同函数体一起提升，函数表达式只提升变量名，调用时机不同。" },
+        { "question": "let/const 也会提升吗？", "hint": "会提升但处于暂时性死区，声明前访问会抛 ReferenceError 而非 undefined。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "JavaScript"]
+    },
+    {
+      "title": "CSS 中 position 有哪些取值？分别有什么表现？",
+      "slug": "frontend-css-position",
+      "answerBrief": "position 取值有 static（默认）、relative（相对自身偏移）、absolute（相对最近定位祖先）、fixed（相对视口固定）、sticky（滚动到阈值后吸附）。relative/absolute/fixed 配合 top/left 等定位。",
+      "answerDetail": "## 取值对比\n\n| 取值 | 定位参照 | 是否脱离文档流 |\n| --- | --- | --- |\n| static | 默认，按正常流 | 否 |\n| relative | 相对自身原位置偏移 | 否（保留原占位） |\n| absolute | 最近的非 static 祖先 | 是 |\n| fixed | 视口 | 是 |\n| sticky | 滚动容器，达阈值吸附 | 否→是（混合） |\n\n## relative\n\n相对自身原位置偏移，原空间保留，常作为 absolute 子元素的定位上下文。\n\n```\n.parent {\n  position: relative; /* 为子元素提供定位参照 */\n}\n.child {\n  position: absolute;\n  top: 0;\n  right: 0;\n}\n```\n\n## fixed\n\n相对视口固定，滚动不动，常用于回到顶部按钮、固定导航。\n\n## sticky\n\n在阈值范围内表现为 relative，超过阈值后吸附为 fixed 效果，常用于吸顶标题。\n\n```\n.header {\n  position: sticky;\n  top: 0;\n}\n```\n\n## z-index\n\n定位元素可用 z-index 控制层叠顺序，但只在同一层叠上下文内比较。理解 position 是布局与悬浮元素的基础。",
+      "followUps": [
+        { "question": "absolute 元素的定位参照是怎么确定的？", "hint": "相对最近的 position 非 static 的祖先元素，都没有则相对初始包含块。" },
+        { "question": "sticky 不生效通常有哪些原因？", "hint": "未设阈值（如 top）、父容器 overflow 隐藏或父容器高度不足都会失效。" }
+      ],
+      "difficulty": "MEDIUM",
+      "tags": ["前端", "CSS"]
+    }
+  ]
+}
