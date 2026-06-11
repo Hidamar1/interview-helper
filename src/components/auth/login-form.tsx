@@ -26,8 +26,7 @@ export function LoginForm() {
       if (result.error) {
         setError(result.error.message ?? "登录失败");
       } else {
-        router.push("/profile");
-        router.refresh();
+        window.location.href = "/profile";
       }
     } catch {
       setError("网络错误，请重试");

@@ -23,8 +23,7 @@ export function RegisterForm() {
       if (result.error) {
         setError(result.error.message ?? "注册失败");
       } else {
-        router.push("/profile");
-        router.refresh();
+        window.location.href = "/profile";
       }
     } catch {
       setError("网络错误，请重试");
