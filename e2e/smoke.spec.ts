@@ -8,4 +8,5 @@ test("首页冒烟：标题、导航、暖橙主题", async ({ page }) => {
   // Hero 渐变存在（反 AI 味验证：暖色渐变而非紫蓝）
   const hero = page.locator("section").first();
   await expect(hero).toHaveCSS("background-image", /linear-gradient/);
+  await expect(hero).toHaveCSS("background-image", /255, 247, 237/); // #FFF7ED 暖奶油色起点
 });
