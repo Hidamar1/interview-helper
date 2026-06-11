@@ -4,6 +4,8 @@ import { followUpsSchema } from "@/lib/question-schema";
 import { AnswerLayers } from "@/components/question/answer-layers";
 import { MarkdownContent } from "@/components/question/markdown-content";
 import { DifficultyBadge } from "@/components/question/difficulty-badge";
+import { FavoriteButton } from "@/components/favorite/favorite-button";
+import { recordStudy } from "@/lib/actions/study";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +13,9 @@ export default async function QuestionPage({ params }: { params: Promise<{ slug:
   const { slug } = await params;
   const question = await viewQuestion(slug);
   if (!question) notFound();
+
+  // 浏览即记录刷题（fire-and-forget）
+  recordStudy(question.id);
 
   const followUps = followUpsSchema.parse(question.followUps);
 
@@ -27,7 +32,10 @@ export default async function QuestionPage({ params }: { params: Promise<{ slug:
           {question.viewCount} 次浏览
         </span>
       </div>
-      <h1 className="mt-3 text-2xl font-bold text-ink">{question.title}</h1>
+      <div className="mt-3 flex items-start justify-between gap-4">
+        <h1 className="text-2xl font-bold text-ink">{question.title}</h1>
+        <FavoriteButton questionId={question.id} />
+      </div>
       <div className="mt-6">
         <AnswerLayers
           brief={question.answerBrief}
