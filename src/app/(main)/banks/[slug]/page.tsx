@@ -19,7 +19,7 @@ export default async function BankDetailPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ difficulty?: string }>;
+  searchParams: Promise<{ difficulty?: string | string[] }>;
 }) {
   const { slug } = await params;
   const { difficulty: raw } = await searchParams;

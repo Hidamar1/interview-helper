@@ -37,3 +37,8 @@ export const seedFileSchema = z.object({
   questions: z.array(seedQuestionSchema).min(30),
 });
 export type SeedFile = z.infer<typeof seedFileSchema>;
+
+/** 归一化 searchParams 值：重复参数取第一个 */
+export function firstParam(v: string | string[] | undefined): string | undefined {
+  return Array.isArray(v) ? v[0] : v;
+}

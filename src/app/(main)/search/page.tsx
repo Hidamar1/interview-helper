@@ -1,6 +1,7 @@
 import { DuckIcon } from "@/components/duck/duck-icon";
 import { QuestionRow } from "@/components/question/question-row";
 import { searchQuestions } from "@/lib/queries/questions";
+import { firstParam } from "@/lib/question-schema";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "搜索" };
@@ -8,10 +9,10 @@ export const metadata = { title: "搜索" };
 export default async function SearchPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string | string[] }>;
 }) {
   const { q } = await searchParams;
-  const keyword = q?.trim() ?? "";
+  const keyword = firstParam(q)?.trim() ?? "";
   const results = keyword ? await searchQuestions(keyword) : [];
 
   return (

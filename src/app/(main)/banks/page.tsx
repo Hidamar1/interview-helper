@@ -2,6 +2,7 @@ import { DuckIcon } from "@/components/duck/duck-icon";
 import { CategoryNav } from "@/components/bank/category-nav";
 import { BankCard } from "@/components/bank/bank-card";
 import { getBanksWithStats } from "@/lib/queries/banks";
+import { firstParam } from "@/lib/question-schema";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "题库" };
@@ -9,9 +10,10 @@ export const metadata = { title: "题库" };
 export default async function BanksPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string }>;
+  searchParams: Promise<{ category?: string | string[] }>;
 }) {
-  const { category } = await searchParams;
+  const { category: rawCategory } = await searchParams;
+  const category = firstParam(rawCategory);
   const banks = await getBanksWithStats(category);
 
   return (
