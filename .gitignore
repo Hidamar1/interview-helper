@@ -12,6 +12,9 @@ node_modules/
 out/
 dist/
 
+# Prisma 生成的 client（由 prisma generate 重建）
+src/generated/
+
 # 测试产物
 coverage/
 playwright-report/

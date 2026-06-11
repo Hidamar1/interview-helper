@@ -1,0 +1,9 @@
+// Prisma 7：连接串在 prisma.config.ts（CLI）与 driver adapter（运行时）配置，datasource 不再写 url
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
