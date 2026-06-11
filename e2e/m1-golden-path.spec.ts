@@ -20,14 +20,15 @@ test("M1 黄金路径：首页→题库→筛选→三层答案→搜索", async
   await page.getByRole("link", { name: "中等", exact: true }).click();
   await expect(page).toHaveURL(/difficulty=MEDIUM/);
 
-  // 进入题目：三层答案
+  // 进入题目：三层答案（原生 details，summary 触发展开）
   await page.locator("a[href^='/questions/']").first().click();
   await expect(page.getByText("30 秒速记")).toBeVisible();
-  await page.getByRole("button", { name: /展开详解/ }).click();
+  await page.locator("summary", { hasText: "详解版" }).click();
   await expect(page.locator(".prose").first()).toBeVisible();
-  await page.getByRole("button", { name: /追问 1/ }).click();
-  await expect(page.getByText("先自己想一想，点击查看提示")).toHaveCount(
-    (await page.getByRole("button", { name: /追问 \d/ }).count()) - 1,
+  await page.locator("summary", { hasText: /追问 1/ }).click();
+  // 追问 1 展开后其 group-open:hidden 提示隐藏，仍可见的提示数 = 追问总数 - 1
+  await expect(page.getByText("先自己想一想，点击查看提示").locator("visible=true")).toHaveCount(
+    (await page.locator("summary", { hasText: /追问 \d/ }).count()) - 1,
   );
 
   // 搜索有结果
