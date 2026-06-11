@@ -11,7 +11,7 @@ export function NavLink({ href, children }: { href: string; children: React.Reac
     <Link
       href={href}
       className={cn(
-        "text-sm text-neutral-600 transition-colors hover:text-primary",
+        "text-sm text-muted-foreground transition-colors hover:text-primary",
         active && "font-semibold text-primary",
       )}
     >
