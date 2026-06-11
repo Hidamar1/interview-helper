@@ -21,3 +21,10 @@ test-results/
 
 # 系统文件
 .DS_Store
+
+# Next.js
+next-env.d.ts
+*.tsbuildinfo
+/build
+*.pem
+.vercel
