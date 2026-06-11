@@ -3,7 +3,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { headers } from "next/headers";
-import { revalidatePath } from "next/cache";
 
 /** 切换收藏状态：已收藏→取消，未收藏→添加。返回新状态 */
 export async function toggleFavorite(questionId: string): Promise<{ favorited: boolean }> {
@@ -20,12 +19,10 @@ export async function toggleFavorite(questionId: string): Promise<{ favorited: b
 
   if (existing) {
     await prisma.favorite.delete({ where: { id: existing.id } });
-    revalidatePath("/profile");
     return { favorited: false };
   }
 
   await prisma.favorite.create({ data: { userId, questionId } });
-  revalidatePath("/profile");
   return { favorited: true };
 }
 
