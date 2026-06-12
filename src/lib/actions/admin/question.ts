@@ -65,7 +65,8 @@ export async function updateQuestion(
 ) {
   await checkAdmin();
   const parsed = adminQuestionSchema.parse(data);
-  const { bankId, ...questionData } = parsed;
+  const { bankId: _bankId, ...questionData } = parsed;
+  void _bankId; // 编辑时不修改题库归属
 
   const existing = await prisma.question.findUnique({
     where: { slug: questionData.slug },

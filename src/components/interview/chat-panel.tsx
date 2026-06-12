@@ -45,7 +45,8 @@ export function ChatPanel({ sessionId }: { sessionId: string }) {
     if (lastMsg && lastMsg.role !== "user") {
       const text = getMessageText(lastMsg);
       if (text.includes(END_MARKER)) {
-        setInterviewEnded(true);
+        // 使用 setTimeout 避免直接在 effect 中 setState 触发的 cascading render 警告
+        setTimeout(() => setInterviewEnded(true), 0);
       }
     }
   }, [messages]);
