@@ -28,7 +28,7 @@ export default async function ProfilePage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-8 space-y-8">
       {/* 用户信息 */}
-      <section className="flex items-center gap-4">
+      <section className="flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
         {user.image ? (
           <img src={user.image} alt="" className="size-16 rounded-full" />
         ) : (

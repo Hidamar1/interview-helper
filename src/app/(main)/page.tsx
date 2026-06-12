@@ -38,7 +38,7 @@ export default async function HomePage() {
               </button>
             </form>
           </div>
-          <div className="hidden sm:block">
+          <div className="hidden md:block">
             <DuckIcon size={130} />
           </div>
         </div>

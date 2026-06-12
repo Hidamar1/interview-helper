@@ -31,7 +31,7 @@ export default async function BankDetailPage({
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
         <div className="flex size-14 items-center justify-center rounded-card bg-cream text-3xl">
           {bank.icon}
         </div>
@@ -41,7 +41,7 @@ export default async function BankDetailPage({
         </div>
       </div>
 
-      <div className="mt-6 flex gap-2">
+      <div className="mt-6 flex gap-2 overflow-x-auto pb-1">
         {FILTERS.map((f) => (
           <Link
             key={f.label}
