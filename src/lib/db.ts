@@ -1,26 +1,49 @@
 import { PrismaClient } from "@/generated/prisma/client";
-import { PrismaNeon } from "@prisma/adapter-neon";
-import { neonConfig } from "@neondatabase/serverless";
-import ws from "ws";
+import type { Prisma } from "@/generated/prisma/client";
 
-// Node 20 无全局 WebSocket，Neon serverless driver 需手动提供；Node 21+/edge 已内置则跳过
-if (typeof globalThis.WebSocket === "undefined") {
-  neonConfig.webSocketConstructor = ws;
-}
+// 判断是否使用 Neon（服务器部署时），否则走本地标准 PostgreSQL
+const isNeon = process.env.DATABASE_URL?.includes("neon.tech");
 
-// 运行时走 Neon pooled 连接（DATABASE_URL）
-const createClient = () =>
-  new PrismaClient({
-    adapter: new PrismaNeon({ connectionString: process.env.DATABASE_URL! }),
-  });
-
+// 声明全局单例
 const globalForPrisma = globalThis as unknown as {
-  prisma?: ReturnType<typeof createClient>;
+  prisma?: PrismaClient;
 };
 
-// 开发环境下复用单例，避免热重载产生过多连接
+function createClient(): PrismaClient {
+  if (isNeon) {
+    // Neon 模式：WebSocket + @prisma/adapter-neon
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { PrismaNeon } = require("@prisma/adapter-neon");
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { neonConfig } = require("@neondatabase/serverless");
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { default: ws } = require("ws");
+
+    if (typeof globalThis.WebSocket === "undefined") {
+      neonConfig.webSocketConstructor = ws;
+    }
+
+    return new PrismaClient({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      adapter: new PrismaNeon({ connectionString: process.env.DATABASE_URL! }),
+    });
+  }
+
+  // 本地 PostgreSQL：@prisma/adapter-pg
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { Pool } = require("pg");
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { PrismaPg } = require("@prisma/adapter-pg");
+
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  return new PrismaClient({
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    adapter: new PrismaPg(pool),
+  });
+}
+
 const client: PrismaClient = globalForPrisma.prisma ?? createClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = client;
 
-export const prisma = client;
+export { client as prisma };
