@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getInterviewDetail } from "@/lib/actions/interview";
 import { RadarChart } from "@/components/interview/radar-chart";
@@ -62,18 +63,18 @@ export default async function ReportPage({
       </section>
 
       <div className="flex justify-center gap-3">
-        <a
+        <Link
           href="/interview"
           className="rounded-full bg-primary px-6 py-2 text-sm font-semibold text-white"
         >
           再面一次
-        </a>
-        <a
+        </Link>
+        <Link
           href={`/interview/${id}`}
           className="rounded-full border border-border-warm px-6 py-2 text-sm text-ink"
         >
           回看对话
-        </a>
+        </Link>
       </div>
     </div>
   );

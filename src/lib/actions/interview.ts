@@ -46,6 +46,7 @@ export async function finishSession(sessionId: string, report: InterviewReport) 
     where: { id: sessionId },
     data: {
       status: "FINISHED",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       report: report as any,
     },
   });

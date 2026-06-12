@@ -25,7 +25,8 @@ describe("reportSchema", () => {
   });
 
   it("应拒绝缺少维度的报告", () => {
-    const { dimensions, ...rest } = validReport;
+    const rest = { ...validReport };
+    delete (rest as Record<string, unknown>).dimensions;
     expect(reportSchema.safeParse(rest).success).toBe(false);
   });
 
