@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Dialog,
@@ -34,7 +34,11 @@ type QuestionRow = {
   difficulty: Difficulty;
   tags: string[];
   viewCount: number;
+  bankId: string;
   bankName: string;
+  answerBrief: string;
+  answerDetail: string;
+  followUps: { question: string; hint: string }[];
 };
 
 interface FollowUp {
@@ -82,12 +86,30 @@ function QuestionDialog({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
   const [form, setForm] = useState<FormData>({ ...EMPTY_FORM });
 
-  // 编辑模式时，从 question 填充数据
-  // 注意：QuestionRow 不含完整字段，编辑时需额外传递完整数据
-  // 此处简化为仅创建模式+编辑标题/难度等
-  // 完整编辑需要另传 answerBrief/answerDetail/followUps 等
+  // 编辑模式时，打开弹窗自动填充已有数据
+  useEffect(() => {
+    if (open && question) {
+      setForm({
+        title: question.title,
+        slug: question.slug,
+        answerBrief: question.answerBrief,
+        answerDetail: question.answerDetail,
+        followUps:
+          question.followUps.length >= 2
+            ? question.followUps
+            : [
+                { question: "", hint: "" },
+                { question: "", hint: "" },
+              ],
+        difficulty: question.difficulty,
+        tags: question.tags.join(", "),
+        bankId: question.bankId,
+      });
+    }
+  }, [open, question]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

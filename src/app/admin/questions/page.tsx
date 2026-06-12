@@ -17,7 +17,7 @@ export default async function AdminQuestionsPage() {
     take: 50,
     include: {
       banks: {
-        select: { bank: { select: { name: true } } },
+        select: { bank: { select: { id: true, name: true } } },
       },
     },
   });
@@ -36,7 +36,11 @@ export default async function AdminQuestionsPage() {
         difficulty: q.difficulty as "EASY" | "MEDIUM" | "HARD",
         tags: q.tags,
         viewCount: q.viewCount,
+        bankId: q.banks[0]?.bank.id ?? "",
         bankName: q.banks[0]?.bank.name ?? "—",
+        answerBrief: q.answerBrief,
+        answerDetail: q.answerDetail,
+        followUps: q.followUps as { question: string; hint: string }[],
       }))}
       banks={banks}
     />
