@@ -61,6 +61,17 @@ export function UserMenu() {
           >
             个人中心
           </button>
+          {(session.user as { role?: string }).role === "ADMIN" && (
+            <>
+              <button
+                type="button"
+                className="w-full px-4 py-2 text-left text-sm text-ink hover:bg-cream"
+                onClick={() => { router.push("/admin"); setOpen(false); }}
+              >
+                管理后台
+              </button>
+            </>
+          )}
           <hr className="border-border-warm" />
           <button
             type="button"
