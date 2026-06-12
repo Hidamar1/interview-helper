@@ -92,22 +92,25 @@ function QuestionDialog({
   // 编辑模式时，打开弹窗自动填充已有数据
   useEffect(() => {
     if (open && question) {
-      setForm({
-        title: question.title,
-        slug: question.slug,
-        answerBrief: question.answerBrief,
-        answerDetail: question.answerDetail,
-        followUps:
-          question.followUps.length >= 2
-            ? question.followUps
-            : [
-                { question: "", hint: "" },
-                { question: "", hint: "" },
-              ],
-        difficulty: question.difficulty,
-        tags: question.tags.join(", "),
-        bankId: question.bankId,
-      });
+      const t = setTimeout(() => {
+        setForm({
+          title: question.title,
+          slug: question.slug,
+          answerBrief: question.answerBrief,
+          answerDetail: question.answerDetail,
+          followUps:
+            question.followUps.length >= 2
+              ? question.followUps
+              : [
+                  { question: "", hint: "" },
+                  { question: "", hint: "" },
+                ],
+          difficulty: question.difficulty,
+          tags: question.tags.join(", "),
+          bankId: question.bankId,
+        });
+      }, 0);
+      return () => clearTimeout(t);
     }
   }, [open, question]);
 

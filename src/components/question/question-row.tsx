@@ -14,7 +14,7 @@ export function QuestionRow({ question }: { question: QuestionRowData }) {
   return (
     <Link
       href={`/questions/${question.slug}`}
-      className="flex items-center gap-3 rounded-card border border-border-warm bg-white px-4 py-3 transition-colors hover:border-primary"
+      className="flex items-center gap-3 rounded-card border border-border-warm bg-white px-4 py-3 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary hover:shadow-md hover:shadow-orange-100"
     >
       <DifficultyBadge difficulty={question.difficulty} />
       <span className="flex-1 truncate text-sm font-medium text-ink">{question.title}</span>
