@@ -9,6 +9,8 @@ import { prisma } from "@/lib/db";
 import { buildInterviewerPrompt } from "@/lib/prompts/interviewer";
 import type { Difficulty } from "@/lib/question-schema";
 
+const END_MARKER = "[END_INTERVIEW]";
+
 export const maxDuration = 60;
 
 export async function POST(
@@ -48,10 +50,69 @@ export async function POST(
   }
 
   if (interview.status !== "ACTIVE") {
-    return Response.json({ error: "面试已结束" }, { status: 400 });
+    // 面试已结束，返回提示
+    const endedStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            JSON.stringify({
+              type: "text-delta",
+              id: "ended",
+              text: "面试已结束，请查看评分报告。",
+            }),
+          ),
+        );
+        controller.enqueue(new TextEncoder().encode("\n"));
+        controller.enqueue(
+          new TextEncoder().encode(
+            JSON.stringify({ type: "finish", id: "ended", reason: "stop" }),
+          ),
+        );
+        controller.close();
+      },
+    });
+    return new Response(endedStream, {
+      headers: { "Content-Type": "text/plain" },
+    });
   }
 
-  // 3. 构建系统提示词
+  // 3. 获取请求中的消息
+  const { messages }: { messages: UIMessage[] } = await req.json();
+
+  // 检查历史消息是否已包含 [END_INTERVIEW]（防止 AI 重复输出）
+  const allParts = messages
+    .flatMap((m) => m.parts)
+    .filter((p): p is { type: "text"; text: string } => p?.type === "text")
+    .map((p) => p.text);
+
+  if (allParts.some((t: string) => t.includes(END_MARKER))) {
+    // 对话已包含结束标记，直接返回结束提示
+    const endedStream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            JSON.stringify({
+              type: "text-delta",
+              id: "ended",
+              text: "面试已结束。",
+            }),
+          ),
+        );
+        controller.enqueue(new TextEncoder().encode("\n"));
+        controller.enqueue(
+          new TextEncoder().encode(
+            JSON.stringify({ type: "finish", id: "ended", reason: "stop" }),
+          ),
+        );
+        controller.close();
+      },
+    });
+    return new Response(endedStream, {
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
+
+  // 4. 构建系统提示词
   const systemPrompt = buildInterviewerPrompt({
     direction: interview.bank.name,
     difficulty: interview.difficulty as Difficulty,
@@ -59,10 +120,7 @@ export async function POST(
     questions: interview.bank.items.map((i) => i.question),
   });
 
-  // 4. 获取请求中的消息
-  const { messages }: { messages: UIMessage[] } = await req.json();
-
-  // 5. mock 模式直接返回固定文本
+  // 5. mock 模式
   if (isMock()) {
     const mockStream = new ReadableStream({
       start(controller) {
@@ -73,9 +131,7 @@ export async function POST(
         );
         controller.enqueue(new TextEncoder().encode("\n"));
         controller.enqueue(
-          new TextEncoder().encode(
-            '{"type":"finish","id":"mock","reason":"stop"}',
-          ),
+          new TextEncoder().encode('{"type":"finish","id":"mock","reason":"stop"}'),
         );
         controller.close();
       },
@@ -92,30 +148,27 @@ export async function POST(
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
     onFinish: async ({ text }) => {
-      // 保存面试官消息到数据库
-      if (text) {
-        const existingCount = await prisma.interviewMessage.count({
-          where: { sessionId: id },
-        });
-        await prisma.interviewMessage.create({
-          data: {
-            sessionId: id,
-            role: "INTERVIEWER",
-            content: text,
-            order: existingCount + 1,
-          },
-        });
+      if (!text) return;
 
-        // 检测 [END_INTERVIEW] 标记
-        if (text.includes("[END_INTERVIEW]")) {
-          const msgCount = await prisma.interviewMessage.count({
-            where: { sessionId: id, role: "INTERVIEWER" },
-          });
-          await prisma.interviewSession.update({
-            where: { id },
-            data: { currentRound: msgCount },
-          });
-        }
+      // 保存面试官消息到数据库
+      const existingCount = await prisma.interviewMessage.count({
+        where: { sessionId: id },
+      });
+      await prisma.interviewMessage.create({
+        data: {
+          sessionId: id,
+          role: "INTERVIEWER",
+          content: text,
+          order: existingCount + 1,
+        },
+      });
+
+      // 检测 [END_INTERVIEW] 标记 → 结束会话
+      if (text.includes(END_MARKER)) {
+        await prisma.interviewSession.update({
+          where: { id },
+          data: { status: "FINISHED" },
+        });
       }
     },
   });
