@@ -18,6 +18,8 @@
     "db:seed": "prisma db seed"
   },
   "dependencies": {
+    "@ai-sdk/deepseek": "^2.0.37",
+    "@ai-sdk/react": "^3.0.204",
     "@better-auth/prisma-adapter": "^1.6.16",
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/adapter-neon": "^7.8.0",
@@ -26,6 +28,7 @@
     "@shikijs/rehype": "^4.2.0",
     "@shikijs/themes": "^4.2.0",
     "@tailwindcss/typography": "^0.5.20",
+    "ai": "^6.0.202",
     "better-auth": "^1.6.16",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
