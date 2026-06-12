@@ -40,6 +40,24 @@ async function main() {
     console.log(`✅ ${data.bank.name}: ${data.questions.length} 题`);
   }
 
+  // 将 ADMIN_EMAIL 白名单中的用户 role 提升为 ADMIN
+  const adminEmails = (process.env.ADMIN_EMAIL ?? "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  for (const email of adminEmails) {
+    if (!email) continue;
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser && existingUser.role !== "ADMIN") {
+      await prisma.user.update({
+        where: { email },
+        data: { role: "ADMIN" },
+      });
+      console.log(`✅ 用户 ${email} 已升级为 ADMIN`);
+    }
+  }
+
   await prisma.$disconnect();
 }
 
