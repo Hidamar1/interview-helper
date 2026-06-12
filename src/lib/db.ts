@@ -19,6 +19,8 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 // 开发环境下复用单例，避免热重载产生过多连接
-export const prisma = globalForPrisma.prisma ?? createClient();
+const client: PrismaClient = globalForPrisma.prisma ?? createClient();
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = client;
+
+export const prisma = client;

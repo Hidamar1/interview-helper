@@ -1,43 +1,99 @@
-<!-- superpowers-zh:begin (do not edit between these markers) -->
-# Superpowers-ZH 中文增强版
+# CLAUDE.md — 面试突击鸭（interview-helper）
 
-本项目已安装 superpowers-zh 技能框架（20 个 skills）。
+> 面向编程求职者的面试刷题平台：题库刷题 + AI 模拟面试。
+> 个人学习/作品集项目，不做支付/会员/商业化。
 
-## 核心规则
+## 技术栈速览
 
-1. **收到任务时，先检查是否有匹配的 skill** — 哪怕只有 1% 的可能性也要检查
-2. **设计先于编码** — 收到功能需求时，先用 brainstorming skill 做需求分析
-3. **测试先于实现** — 写代码前先写测试（TDD）
-4. **验证先于完成** — 声称完成前必须运行验证命令
+| 层 | 选型 | 版本 |
+|---|---|---|
+| 框架 | Next.js 16 (App Router) | 16.2.x |
+| UI | React 19 + Tailwind CSS 4 + shadcn/ui 4 | 19.2 / 4.x |
+| ORM | Prisma 7 + @prisma/adapter-neon | 7.x |
+| 数据库 | Neon PostgreSQL (serverless) | - |
+| 认证 | Better Auth（M2 接入） | 最新 |
+| AI | Vercel AI SDK v6 + @ai-sdk/deepseek | 6.x |
+| 校验 | zod 4 | 4.x |
+| 测试 | Vitest + Testing Library + Playwright | 最新 |
+| 包管理 | pnpm 10 | 10.x |
 
-## 可用 Skills
+## 项目结构
 
-Skills 位于 `.claude/skills/` 目录，每个 skill 有独立的 `SKILL.md` 文件。
+```
+src/
+├── app/                    # App Router 页面
+│   ├── (main)/             # 前台布局：首页/题库/题目/搜索
+│   ├── (auth)/             # 登录注册（M2）
+│   ├── admin/              # 管理后台（M4）
+│   └── api/                # Route Handlers（Auth/AI）
+├── components/
+│   ├── ui/                 # shadcn 暖橙改造组件
+│   └── duck/               # 吉祥物鸭子 SVG 组件
+├── lib/
+│   ├── db.ts               # Prisma 客户端单例（adapter-neon）
+│   ├── actions/            # Server Actions
+│   └── ai.ts               # LLM provider 切换
+prisma/
+├── schema.prisma
+└── seed.ts                 # 种子数据（303 道题）
+data/questions/             # 种子 JSON 数据（8 个分类）
+e2e/                        # Playwright E2E
+docs/                       # 需求/技术方案基线
+```
 
-- **brainstorming**: 在任何创造性工作之前必须使用此技能——创建功能、构建组件、添加功能或修改行为。在实现之前先探索用户意图、需求和设计。
-- **chinese-code-review**: 中文 review 沟通参考——话术模板、分级标注（必须修复/建议修改/仅供参考）、国内团队常见反模式应对。仅在用户显式 /chinese-code-review 时调用，不要根据上下文自动触发。
-- **chinese-commit-conventions**: 中文 commit 与 changelog 配置参考——Conventional Commits 中文适配、commitlint/husky/commitizen 中文模板、conventional-changelog 中文配置。仅在用户显式 /chinese-commit-conventions 时调用，不要根据上下文自动触发。
-- **chinese-documentation**: 中文文档排版参考——中英文空格、全半角标点、术语保留、链接格式、中文文案排版指北约定。仅在用户显式 /chinese-documentation 时调用，不要根据上下文自动触发。
-- **chinese-git-workflow**: 国内 Git 平台配置参考——Gitee、Coding.net、极狐 GitLab、CNB 的 SSH/HTTPS/凭据/CI 接入差异与镜像同步配置。仅在用户显式 /chinese-git-workflow 时调用，不要根据上下文自动触发。
-- **dispatching-parallel-agents**: 当面对 2 个以上可以独立进行、无共享状态或顺序依赖的任务时使用
-- **executing-plans**: 当你有一份书面实现计划需要在单独的会话中执行，并设有审查检查点时使用
-- **finishing-a-development-branch**: 当实现完成、所有测试通过、需要决定如何集成工作时使用——通过提供合并、PR 或清理等结构化选项来引导开发工作的收尾
-- **mcp-builder**: MCP 服务器构建方法论 — 系统化构建生产级 MCP 工具，让 AI 助手连接外部能力
-- **receiving-code-review**: 收到代码审查反馈后、实施建议之前使用，尤其当反馈不明确或技术上有疑问时——需要技术严谨性和验证，而非敷衍附和或盲目执行
-- **requesting-code-review**: 完成任务、实现重要功能或合并前使用，用于验证工作成果是否符合要求
-- **subagent-driven-development**: 当在当前会话中执行包含独立任务的实现计划时使用
-- **systematic-debugging**: 遇到任何 bug、测试失败或异常行为时使用，在提出修复方案之前执行
-- **test-driven-development**: 在实现任何功能或修复 bug 时使用，在编写实现代码之前
-- **using-git-worktrees**: 当需要开始与当前工作区隔离的功能开发，或在执行实现计划之前使用——通过原生工具或 git worktree 回退机制确保隔离工作区存在
-- **using-superpowers**: 在开始任何对话时使用——确立如何查找和使用技能，要求在任何响应（包括澄清性问题）之前调用 Skill 工具
-- **verification-before-completion**: 在宣称工作完成、已修复或测试通过之前使用，在提交或创建 PR 之前——必须运行验证命令并确认输出后才能声称成功；始终用证据支撑断言
-- **workflow-runner**: 在 Claude Code / OpenClaw / Cursor 中直接运行 agency-orchestrator YAML 工作流——无需 API key，使用当前会话的 LLM 作为执行引擎。当用户提供 .yaml 工作流文件或要求多角色协作完成任务时触发。
-- **writing-plans**: 当你有规格说明或需求用于多步骤任务时使用，在动手写代码之前
-- **writing-skills**: 当创建新技能、编辑现有技能或在部署前验证技能是否有效时使用
+## 里程碑进度
 
-## 如何使用
+| 里程碑 | 状态 | 内容 |
+|---|---|---|
+| M0 脚手架 | ✅ 已验收 | 项目初始化、暖橙主题、数据库连通、CI 基建 |
+| M1 题库核心 | ✅ 已验收 | 303 道种子题、首页/题库/题目三层答案/搜索、E2E |
+| **M2 用户体系** | **← 下一步** | Better Auth、收藏、刷题记录、个人中心热力图 |
+| M3 AI 模拟面试 | 待开始 | DeepSeek 流式对话、评分报告、雷达图 |
+| M4 管理后台 | 待开始 | 题库/题目 CRUD |
 
-当任务匹配某个 skill 时，使用 `Skill` 工具加载对应 skill 并严格遵循其流程。绝不要用 Read 工具读取 SKILL.md 文件。
+## 关键技术决策
 
-如果你认为哪怕只有 1% 的可能性某个 skill 适用于你正在做的事情，你必须调用该 skill 检查。
-<!-- superpowers-zh:end -->
+- **AI SDK 锁定 v6**（ai@6 + @ai-sdk/react@6），v4/v5/v6 useChat API 互不兼容
+- **Prisma 7** 连接：CLI 走 `prisma.config.ts` 的 DIRECT_URL，运行时 `lib/db.ts` 用 adapter-neon + DATABASE_URL
+- **Node 20** 需 `ws` 注入（Neon serverless 依赖）
+- **三层答案**用原生 `<details>/<summary>`（修复过水合竞态，勿改回 onClick 方案）
+- **searchParams** 用 `firstParam` 归一化防数组 500
+- **查库页面**一律 `force-dynamic`
+- **shadcn** 全部暖橙改造，禁止默认灰黑/紫蓝样式直出
+- **样式 token**：主橙 `#FF7D00`、鸭黄 `#FFB01F`、奶油底 `#FFF7ED`、卡片圆角 14px
+- API 密钥只在 `.env`（不入库），`.env` 内容绝不输出到对话
+
+## 工作流约定
+
+每个里程碑严格遵循：
+1. `writing-plans` 出计划 → 用户确认
+2. 建 `feature/mX-xxx` 分支
+3. `subagent-driven-development` 逐任务实现（TDD + 两阶段审查）
+4. `pnpm lint && pnpm typecheck && pnpm test && pnpm build` + E2E 全绿
+5. 最终审查 → 用户人工验收 → 合并 master → 删分支
+
+提交：Conventional Commits 中文描述。
+
+## 红线
+
+- ❌ 不做需求 §5 YAGNI 清单功能（支付/会员/小程序/ES/暗色模式等）
+- ❌ UI 禁用紫蓝渐变和 shadcn 默认样式直出
+- ❌ 不强推 master/main
+- ❌ 不输出 `.env` 内容
+
+## 环境注意事项
+
+- **Windows + git-bash** 开发环境
+- 停端口：`netstat -ano | findstr :3000` 找 PID → `taskkill //F //PID xxx`
+- corepack 已禁用
+- `pnpm build` 后直接 `pnpm dev` 可能产物冲突，必要时删 `.next`
+- Neon 冷启动首次请求慢（数百 ms）属正常
+- 所有 MCP/skill 调用以 `Skill` 工具为准，不要用 Read 读 SKILL.md
+
+## 参考文档
+
+- 需求基线：`docs/01-需求分析.md`
+- 技术方案：`docs/02-技术方案.md`
+- 实现计划：`docs/superpowers/plans/`
+- 视觉原型：`docs/superpowers/mockups/visual-style.html`
+- andrej-karpathy-skills 规范：`.claude/rules/karpathy-skills.md`
