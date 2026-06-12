@@ -12,17 +12,17 @@ export default async function HomePage() {
   return (
     <>
       <section className="bg-[linear-gradient(135deg,#FFF7ED_0%,#FFEDD5_60%,#FED7AA_100%)]">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-14">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 py-8 text-center md:flex-row md:justify-between md:py-14 md:text-left">
           <div className="max-w-xl">
-            <h1 className="text-4xl font-bold leading-snug text-ink">
+            <h1 className="text-2xl font-bold leading-snug text-ink md:text-4xl">
               把八股文，刷成<em className="not-italic text-primary">肌肉记忆</em>
             </h1>
-            <p className="mt-3 text-sm text-muted-foreground">
+            <p className="mt-3 text-xs text-muted-foreground md:text-sm">
               {totalQuestions}+ 道高频面试题 · AI 面试官追问 · 程序员求职刷题神器
             </p>
             <form
               action="/search"
-              className="mt-6 flex w-full max-w-md items-center rounded-full border-2 border-primary bg-white py-1 pl-5 pr-1"
+              className="mt-4 flex w-full max-w-md items-center rounded-full border-2 border-primary bg-white py-1 pl-5 pr-1 md:mt-6"
             >
               <input
                 name="q"
@@ -46,7 +46,7 @@ export default async function HomePage() {
 
       <div className="mx-auto max-w-6xl px-4 py-8">
         <CategoryNav />
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {banks.map((b) => (
             <BankCard key={b.id} bank={b} />
           ))}
