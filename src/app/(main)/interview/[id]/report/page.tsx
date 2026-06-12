@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getInterviewDetail } from "@/lib/actions/interview";
+import { getInterviewDetail, generateReport } from "@/lib/actions/interview";
+import { reportSchema } from "@/lib/prompts/report";
 import { RadarChart } from "@/components/interview/radar-chart";
 import { ScoreCard } from "@/components/interview/score-card";
 import { WeaknessList } from "@/components/interview/weakness-list";
-import { reportSchema } from "@/lib/prompts/report";
 
 export const dynamic = "force-dynamic";
 
@@ -17,14 +17,30 @@ export default async function ReportPage({
   const interview = await getInterviewDetail(id);
   if (!interview || interview.status !== "FINISHED") notFound();
 
-  const report = interview.report ? reportSchema.parse(interview.report) : null;
-  if (!report) {
+  // 如果还没有报告，调用 DeepSeek 生成
+  if (!interview.report) {
+    try {
+      await generateReport(id);
+    } catch {
+      return (
+        <div className="mx-auto max-w-2xl px-4 py-16 text-center">
+          <p className="text-muted-foreground">报告生成失败，请刷新重试</p>
+        </div>
+      );
+    }
+  }
+
+  // 重新获取（包含刚生成的报告）
+  const updated = await getInterviewDetail(id);
+  if (!updated?.report) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-16 text-center">
         <p className="text-muted-foreground">报告生成中...</p>
       </div>
     );
   }
+
+  const report = reportSchema.parse(updated.report);
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-8">
