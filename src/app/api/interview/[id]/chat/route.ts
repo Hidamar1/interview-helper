@@ -72,7 +72,7 @@ export async function POST(
       },
     });
     return new Response(endedStream, {
-      headers: { "Content-Type": "text/plain" },
+      headers: { "Content-Type": "text/event-stream", "x-vercel-ai-ui-message-stream": "v1" },
     });
   }
 
@@ -108,7 +108,7 @@ export async function POST(
       },
     });
     return new Response(endedStream, {
-      headers: { "Content-Type": "text/plain" },
+      headers: { "Content-Type": "text/event-stream", "x-vercel-ai-ui-message-stream": "v1" },
     });
   }
 
@@ -122,22 +122,20 @@ export async function POST(
 
   // 5. mock 模式
   if (isMock()) {
+    const mockChunks = [
+      `data: ${JSON.stringify({ type: "text-delta", id: "mock", text: "面试官：你好！我是面试官，今天我们来聊聊 Java 基础（mock 模式）。\\n\\n先来第一题：请解释一下 HashMap 的底层实现原理？" })}\n\n`,
+      `data: ${JSON.stringify({ type: "finish", id: "mock", reason: "stop" })}\n\n`,
+    ];
     const mockStream = new ReadableStream({
       start(controller) {
-        controller.enqueue(
-          new TextEncoder().encode(
-            '{"type":"text-delta","id":"mock","text":"面试官：你好！我是面试官，今天我们来聊聊 Java 基础（mock 模式）。\\n\\n先来第一题：请解释一下 HashMap 的底层实现原理？"}',
-          ),
-        );
-        controller.enqueue(new TextEncoder().encode("\n"));
-        controller.enqueue(
-          new TextEncoder().encode('{"type":"finish","id":"mock","reason":"stop"}'),
-        );
+        for (const chunk of mockChunks) {
+          controller.enqueue(new TextEncoder().encode(chunk));
+        }
         controller.close();
       },
     });
     return new Response(mockStream, {
-      headers: { "Content-Type": "text/plain" },
+      headers: { "Content-Type": "text/event-stream", "x-vercel-ai-ui-message-stream": "v1" },
     });
   }
 
