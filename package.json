@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.37",
+    "@ai-sdk/openai": "^3.0.71",
     "@ai-sdk/react": "^3.0.204",
     "@better-auth/prisma-adapter": "^1.6.16",
     "@neondatabase/serverless": "^1.1.0",

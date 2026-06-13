@@ -1,6 +1,9 @@
-import { createDeepSeek } from "@ai-sdk/deepseek";
+import { createOpenAI } from "@ai-sdk/openai";
 
-const deepseek = createDeepSeek({
+// 使用 DeepSeek 的 OpenAI 兼容接口
+// 文档：https://platform.deepseek.com/api-docs
+const deepseek = createOpenAI({
+  baseURL: "https://api.deepseek.com/v1",
   apiKey: process.env.DEEPSEEK_API_KEY,
 });
 
@@ -8,7 +11,7 @@ const deepseek = createDeepSeek({
 export function getModel() {
   switch (process.env.AI_PROVIDER) {
     case "mock":
-      return null; // 测试环境，由测试注入 mock provider
+      return null;
     case "deepseek":
     default:
       return deepseek("deepseek-chat");
