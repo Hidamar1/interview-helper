@@ -1,11 +1,10 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { CATEGORIES } from "@/lib/constants";
+import { requireAdmin } from "@/lib/admin-check";
 
 const bankSchema = z.object({
   name: z.string().min(2),
@@ -16,16 +15,8 @@ const bankSchema = z.object({
   sortOrder: z.number().int().min(0),
 });
 
-async function checkAdmin(): Promise<string> {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session || (session.user as { role?: string }).role !== "ADMIN") {
-    throw new Error("无权访问");
-  }
-  return session.user.id;
-}
-
 export async function createBank(data: z.infer<typeof bankSchema>) {
-  await checkAdmin();
+  await requireAdmin();
   const parsed = bankSchema.parse(data);
 
   const existing = await prisma.questionBank.findUnique({
@@ -38,7 +29,7 @@ export async function createBank(data: z.infer<typeof bankSchema>) {
 }
 
 export async function updateBank(id: string, data: z.infer<typeof bankSchema>) {
-  await checkAdmin();
+  await requireAdmin();
   const parsed = bankSchema.parse(data);
 
   const existing = await prisma.questionBank.findUnique({
@@ -51,7 +42,7 @@ export async function updateBank(id: string, data: z.infer<typeof bankSchema>) {
 }
 
 export async function deleteBank(id: string) {
-  await checkAdmin();
+  await requireAdmin();
   const count = await prisma.questionBankItem.count({ where: { bankId: id } });
   if (count > 0) throw new Error("该题库下还有题目，请先删除题目");
 

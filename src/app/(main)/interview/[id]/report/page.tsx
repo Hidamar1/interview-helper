@@ -40,7 +40,18 @@ export default async function ReportPage({
     );
   }
 
-  const report = reportSchema.parse(updated.report);
+  const parsed = reportSchema.safeParse(updated.report);
+  if (!parsed.success) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-16 text-center">
+        <p className="text-muted-foreground">报告数据异常</p>
+        <a href={`/interview/${id}`} className="mt-4 inline-block rounded-full bg-primary px-6 py-2 text-sm font-semibold text-white">
+          回看对话
+        </a>
+      </div>
+    );
+  }
+  const report = parsed.data;
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 px-4 py-8">

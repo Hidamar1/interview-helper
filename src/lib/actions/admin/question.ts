@@ -1,11 +1,10 @@
 "use server";
 
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
+import { requireAdmin } from "@/lib/admin-check";
 
 const adminQuestionSchema = z.object({
   title: z.string().min(5),
@@ -26,16 +25,8 @@ const adminQuestionSchema = z.object({
   bankId: z.string(),
 });
 
-async function checkAdmin() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session || (session.user as { role?: string }).role !== "ADMIN") {
-    throw new Error("无权访问");
-  }
-  return session;
-}
-
 export async function createQuestion(data: z.infer<typeof adminQuestionSchema>) {
-  await checkAdmin();
+  await requireAdmin();
   const parsed = adminQuestionSchema.parse(data);
   const { bankId, ...questionData } = parsed;
 
@@ -63,7 +54,7 @@ export async function updateQuestion(
   id: string,
   data: z.infer<typeof adminQuestionSchema>,
 ) {
-  await checkAdmin();
+  await requireAdmin();
   const parsed = adminQuestionSchema.parse(data);
   const { bankId: _bankId, ...questionData } = parsed;
   void _bankId; // 编辑时不修改题库归属
@@ -85,7 +76,7 @@ export async function updateQuestion(
 }
 
 export async function deleteQuestion(id: string) {
-  await checkAdmin();
+  await requireAdmin();
   await prisma.question.delete({ where: { id } });
   revalidatePath("/admin/questions");
 }

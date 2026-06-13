@@ -21,16 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createBank, updateBank, deleteBank } from "@/lib/actions/admin/bank";
+import { CATEGORIES } from "@/lib/constants";
 
-const CATEGORIES = [
-  "Java",
-  "前端",
-  "Python",
-  "数据库",
-  "网络",
-  "操作系统",
-  "AI 大模型",
-] as const;
 type Category = (typeof CATEGORIES)[number];
 
 type BankRow = {

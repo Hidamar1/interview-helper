@@ -45,15 +45,24 @@ export async function finishSession(sessionId: string, report: InterviewReport) 
     throw new Error("无权操作该面试会话");
   }
 
-  await prisma.interviewSession.update({
-    where: { id: sessionId },
+  // 原子写入：仅当 report 仍为 null 时才写入，避免竞态覆盖
+  const result = await prisma.interviewSession.updateMany({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    where: { id: sessionId, report: { equals: null } as any },
     data: {
       status: "FINISHED",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       report: report as any,
     },
   });
+
+  if (result.count === 0) {
+    // 另一个并发调用已经写入了报告，直接返回
+    return;
+  }
+
   revalidatePath(`/interview/${sessionId}/report`);
+  revalidatePath("/interview/history");
 }
 
 /** 由 DeepSeek 生成评分报告并持久化 */

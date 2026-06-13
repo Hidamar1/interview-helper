@@ -14,7 +14,7 @@ export const reportSchema = z.object({
   weaknesses: z.array(
     z.object({
       point: z.string().describe("薄弱点描述"),
-      questionId: z.string().optional().describe("关联的题库题目 ID，方便回链复习"),
+      questionSlug: z.string().optional().describe("关联的题目 slug，方便回链复习（如 java-hashmap-resize）"),
       suggestion: z.string().describe("改进建议"),
     }),
   ).describe("薄弱点（2-5 条，每条关联对应题目）"),

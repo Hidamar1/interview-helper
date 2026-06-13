@@ -15,7 +15,7 @@ export default async function QuestionPage({ params }: { params: Promise<{ slug:
   if (!question) notFound();
 
   // 浏览即记录刷题（fire-and-forget）
-  recordStudy(question.id);
+  recordStudy(question.id).catch(() => {});
 
   const followUps = followUpsSchema.parse(question.followUps);
 

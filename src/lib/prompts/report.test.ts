@@ -8,7 +8,7 @@ const validReport = {
   weaknesses: [
     {
       point: "HashMap 扩容机制理解不深入",
-      questionId: "java-hashmap-resize",
+      questionSlug: "java-hashmap-resize",
       suggestion: "阅读 JDK 源码 resize() 方法",
     },
   ],

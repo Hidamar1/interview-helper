@@ -17,9 +17,9 @@ export function WeaknessList({
             {i + 1}. {w.point}
           </p>
           <p className="mt-1 text-muted-foreground">{w.suggestion}</p>
-          {w.questionId && (
+          {w.questionSlug && (
             <Link
-              href={`/questions/${w.questionId}`}
+              href={`/questions/${w.questionSlug}`}
               className="mt-1 inline-block text-xs text-primary underline"
             >
               去复习相关题目 →
